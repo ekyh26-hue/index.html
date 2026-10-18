@@ -977,7 +977,7 @@ function render(){ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle='#0b1128';ctx.
 // ── ONLINE DUO ───────────────────────────────────────────────────────────
 // PeerJS Cloud is signaling only; gameplay packets use a direct WebRTC DataChannel.
 // Host is authoritative: guests send inputs; host simulates enemies, hits, drops and rewards.
-const coop={mode:'solo',code:'',peer:null,conn:null,ally:null,hostSkin:'star',friendSkin:'star',remoteInput:{x:0,y:0,dash:false},guestDash:false,hostChoosing:false,guestChoosing:false,guestChoiceWaiting:false,guestQueueBefore:0,inGame:false,elapsed:0,sendTick:0,inputTick:0,loading:false,lastReceive:0,lobbyStage:'choose'};
+const coop={mode:'solo',code:'',peer:null,conn:null,ally:null,hostSkin:'star',friendSkin:'star',remoteInput:{x:0,y:0,dash:false},guestDash:false,hostChoosing:false,guestChoosing:false,guestChoiceWaiting:false,guestQueueBefore:0,inGame:false,elapsed:0,sendTick:0,inputTick:0,loading:false,lastReceive:0,lobbyStage:'choose',reconnecting:false,reconnectTimer:null,reconnectCount:0,reconnectSince:0,connectionEpoch:0};
 const coopEl=id=>document.getElementById(id);
 function coopSend(data){if(coop.conn?.open){try{coop.conn.send(data);return true}catch(e){console.warn('Duo send error',e)}}return false;}
 function coopSetMsg(message){coopEl('coopMsg').textContent=message||''}
@@ -1004,23 +1004,85 @@ function coopShowLobby(){coop.lobbyStage='lobby';if(coop.mode==='host'){
 function coopCopy(value){if(navigator.clipboard?.writeText){navigator.clipboard.writeText(value).then(()=>coopSetMsg('📋 복사했어! 친구에게 보내 줘.')).catch(()=>coopCopyFallback(value))}else coopCopyFallback(value)}
 function coopCopyFallback(value){let inp=document.createElement('textarea');inp.value=value;document.body.appendChild(inp);inp.select();document.execCommand('copy');inp.remove();coopSetMsg('📋 복사했어! 친구에게 보내 줘.')}
 async function coopLoadPeer(){if(typeof Peer!=='undefined')return Peer;if(coop.loading)throw Error('잠시 후 다시 시도해 줘.');coop.loading=true;coopSetMsg('🌐 연결 기능 불러오는 중…');try{await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js';script.onload=resolve;script.onerror=()=>reject(Error('통신 라이브러리를 불러오지 못했어. 인터넷 연결을 확인해 줘.'));document.head.append(script);setTimeout(()=>{if(typeof Peer==='undefined')reject(Error('통신 라이브러리 연결이 지연되고 있어.'))},14000)});return Peer}finally{coop.loading=false}}
-function coopDestroy(){let conn=coop.conn,peer=coop.peer;coop.conn=null;coop.peer=null;try{conn?.close()}catch(e){}try{peer?.destroy()}catch(e){}coop.remoteInput={x:0,y:0,dash:false};coop.ally=null;coop.hostChoosing=false;coop.guestChoosing=false;coop.guestChoiceWaiting=false;coop.inGame=false;coop.sendTick=coop.inputTick=0;}
+function coopDestroy(){let conn=coop.conn,peer=coop.peer;if(coop.reconnectTimer){clearTimeout(coop.reconnectTimer);coop.reconnectTimer=null}coop.reconnecting=false;coop.reconnectCount=0;coop.connectionEpoch++;coop.conn=null;coop.peer=null;try{conn?.close()}catch(e){}try{peer?.destroy()}catch(e){}coop.remoteInput={x:0,y:0,dash:false};coop.ally=null;coop.hostChoosing=false;coop.guestChoosing=false;coop.guestChoiceWaiting=false;coop.inGame=false;coop.sendTick=coop.inputTick=0;}
 function coopLeave(){let previous=coop.mode;if(previous!=='solo')coopSend({type:'leave'});coopDestroy();coop.mode='solo';coop.code='';coopOverlay(false);coopPillText();coopEl('coopWait').classList.remove('on');if(previous!=='solo'&&scene==='play'){forceClose();paused=true;scene='home';s=null;syncMode();}else if(previous!=='solo')syncMode()}
+// 접속이 잠깐 끊긴 것은 강제 퇴장이 아니다. 플레이 상태와 방을 유지하며 자동 재접속한다.
+function coopConnectionLost(conn,reason='연결이 일시적으로 끊겼어.'){
+ if(coop.mode==='solo'||coop.conn!==conn)return;
+ coop.conn=null;coop.remoteInput={x:0,y:0,dash:false};
+ coop.reconnecting=true;coop.reconnectSince=coop.reconnectSince||Date.now();
+ coop.connectionEpoch++;
+ coopConnectionMessage('📡 '+reason+' 자동으로 다시 연결하는 중…');
+ coopReconnectLoop();
+}
+function coopConnectionMessage(text){
+ if(coop.mode==='solo')return;
+ if(coop.inGame){const w=coopEl('coopWait');if(w){w.textContent=text;w.classList.add('on')}}
+ else if(coopEl('coopLayer').classList.contains('show'))coopSetMsg(text);
+}
+function coopRecoveryDone(){
+ const was=coop.reconnecting;
+ coop.reconnecting=false;coop.reconnectSince=0;coop.reconnectCount=0;
+ if(coop.reconnectTimer){clearTimeout(coop.reconnectTimer);coop.reconnectTimer=null}
+ if(was){coopConnectionMessage('✅ 친구와 다시 연결됐어!');toast('star','협동 연결 복구','방과 진행 상황을 유지했어!')}
+}
+function coopReconnectLoop(){
+ if(!coop.reconnecting||coop.mode==='solo'||coop.reconnectTimer)return;
+ const token=coop.connectionEpoch;
+ coop.reconnectTimer=setTimeout(()=>{
+  coop.reconnectTimer=null;
+  if(!coop.reconnecting||coop.mode==='solo'||token!==coop.connectionEpoch)return;
+  if(coop.conn?.open){coopRecoveryDone();return}
+  coop.reconnectCount++;
+  const peer=coop.peer;
+  if(peer&&!peer.destroyed){
+    try{
+      if(peer.disconnected){peer.reconnect()}
+      else if(coop.mode==='guest'){
+       // 아직 방이 있으면 6자리 코드는 그대로 사용한다.
+       let c=peer.connect('jigu-room-'+coop.code,{reliable:true,serialization:'json'});
+       coop.conn=c;coopAttachConnection(c,'guest');
+       // 재접속이 오래 걸려도 '추방'으로 처리하지 않는다.
+       setTimeout(()=>{if(coop.reconnecting&&coop.conn===c&&!c.open){coop.conn=null;try{c.close()}catch(e){}coopReconnectLoop()}},6500);
+       return;
+      }
+    }catch(err){console.warn('협동 재연결 시도:',err)}
+  }
+  const waiting=Math.round((Date.now()-coop.reconnectSince)/1000);
+  coopConnectionMessage(waiting>25?'📡 연결 복구 대기 중 ('+waiting+'초) · 자동 재시도 중…':'📡 친구와 재연결 시도 중…');
+  coopReconnectLoop();
+ },Math.min(7500,1300+coop.reconnectCount*600));
+}
 function coopDrop(msg='친구와 연결이 끊겼어.'){let prev=coop.mode;if(prev==='solo')return;coopDestroy();coop.mode='solo';coop.code='';coopPillText();coopEl('coopWait').classList.remove('on');if(prev==='guest'&&scene==='play'){forceClose();paused=true;scene='home';s=null;syncMode();}if(coopEl('coopLayer').classList.contains('show'))coopShowChoose();toast('heart','협동 모드 연결 종료',msg);}
-async function coopCreate(){if(coop.mode!=='solo')coopLeave();coopSetMsg('⏳ 방을 만드는 중…');try{const C=await coopLoadPeer();let code=coopNewCode();coop.mode='host';coop.code=code;coop.lobbyStage='loading';const peer=new C('jigu-room-'+code,{debug:0});coop.peer=peer;
+async function coopCreate(){if(coop.mode!=='solo')coopLeave();coopSetMsg('⏳ 방을 만드는 중…');try{const C=await coopLoadPeer();let code=coopNewCode();coop.mode='host';coop.code=code;coop.lobbyStage='loading';coop.reconnecting=false;coop.reconnectSince=0;const peer=new C('jigu-room-'+code,{debug:0});coop.peer=peer;
  peer.on('open',()=>{if(coop.peer!==peer)return;coopShowLobby()});
- peer.on('connection',conn=>{if(coop.conn||coop.inGame){conn.on('open',()=>{conn.send({type:'full'});conn.close()});return}coop.conn=conn;coopAttachConnection(conn,'host')});
- peer.on('error',err=>{if(coop.peer!==peer)return;coopDrop(err.type==='unavailable-id'?'이미 존재하는 방 코드야. 다시 만들어 줘.':'방 생성 실패: '+(err.type||err.message||'인터넷 연결을 확인해 줘.'))});
- peer.on('disconnected',()=>{if(coop.mode==='host'&&!coop.inGame)coopSetMsg('⚠ 연결 서버가 끊겼어. 페이지를 새로고침해 줘.')});
+ peer.on('connection',conn=>{if(coop.conn?.open){conn.on('open',()=>{conn.send({type:'full'});conn.close()});return}if(coop.conn&&!coop.conn.open){try{coop.conn.close()}catch(e){}}coop.conn=conn;coopAttachConnection(conn,'host')});
+ peer.on('error',err=>{if(coop.peer!==peer)return;if(!coop.inGame&&!coop.conn?.open&&!coop.reconnecting){coopDrop(err.type==='unavailable-id'?'이미 존재하는 방 코드야. 다시 만들어 줘.':'방 생성 실패: '+(err.type||err.message||'인터넷 연결을 확인해 줘.'));return}console.warn('방장 네트워크 오류',err);coopConnectionMessage('📡 연결 서버에 문제가 있어 복구 시도 중…');try{if(peer.disconnected)peer.reconnect()}catch(e){} });
+ peer.on('disconnected',()=>{if(coop.peer!==peer)return;coopConnectionMessage('📡 연결 서버가 끊겼어. 다시 연결하는 중…');try{peer.reconnect()}catch(e){} });
  }catch(err){coopDestroy();coop.mode='solo';coopSetMsg('❌ '+err.message)}}
-async function coopJoin(){const code=coopCodeClean(coopEl('coopCodeInput')?.value);if(code.length!==6){coopSetMsg('❗ 방 코드 6자리를 입력해 줘.');return}if(coop.mode!=='solo')coopLeave();coopSetMsg('⏳ 방에 연결 중…');try{const C=await coopLoadPeer();coop.mode='guest';coop.code=code;coop.hostSkin='star';const peer=new C(undefined,{debug:0});coop.peer=peer;
+async function coopJoin(){const code=coopCodeClean(coopEl('coopCodeInput')?.value);if(code.length!==6){coopSetMsg('❗ 방 코드 6자리를 입력해 줘.');return}if(coop.mode!=='solo')coopLeave();coopSetMsg('⏳ 방에 연결 중…');try{const C=await coopLoadPeer();coop.mode='guest';coop.code=code;coop.hostSkin='star';coop.reconnecting=false;coop.reconnectSince=0;const peer=new C(undefined,{debug:0});coop.peer=peer;
  peer.on('open',()=>{if(coop.peer!==peer)return;const conn=peer.connect('jigu-room-'+code,{reliable:true,serialization:'json'});coop.conn=conn;coopAttachConnection(conn,'guest');setTimeout(()=>{if(coop.mode==='guest'&&!conn.open&&coop.conn===conn)coopDrop('연결 시간이 초과됐어. 방 코드를 확인해 줘.')},16000)});
- peer.on('error',err=>{if(coop.peer!==peer)return;coopDrop(err.type==='peer-unavailable'?'방을 찾지 못했어. 코드와 방장 접속 상태를 확인해 줘.':'연결 오류: '+(err.type||err.message||'연결 실패'))});
+ peer.on('error',err=>{if(coop.peer!==peer)return;if(coop.reconnecting||coop.inGame){console.warn('친구 네트워크 오류',err);coop.reconnecting=true;coop.reconnectSince=coop.reconnectSince||Date.now();coopReconnectLoop();return}coopDrop(err.type==='peer-unavailable'?'방을 찾지 못했어. 코드와 방장 접속 상태를 확인해 줘.':'연결 오류: '+(err.type||err.message||'연결 실패'))});
+ peer.on('disconnected',()=>{if(coop.peer!==peer)return;coopConnectionMessage('📡 연결 서버가 끊겼어. 복구 중…');try{peer.reconnect()}catch(e){}if(!coop.conn?.open){coop.reconnecting=true;coop.reconnectSince=coop.reconnectSince||Date.now();coopReconnectLoop()}});
  }catch(err){coopDestroy();coop.mode='solo';coopSetMsg('❌ '+err.message)}}
-function coopAttachConnection(conn,role){let gotHello=false;conn.on('open',()=>{if(coop.conn!==conn)return;if(role==='host'){coop.friendSkin='star';coop.ally=coopMakeAlly();coopSend({type:'welcome',skin:meta.skin});coopShowLobby();}else{coopSend({type:'hello',skin:meta.skin});coopShowLobby();}});
+function coopAttachConnection(conn,role){conn.on('open',()=>{
+ if(coop.conn!==conn)return;
+ const wasInGame=coop.inGame;
+ coopRecoveryDone();
+ if(role==='host'){
+  coop.friendSkin=coop.friendSkin||'star';
+  if(!coop.ally)coop.ally=coopMakeAlly(); // 재접속 시 친구의 체력/스킬 초기화 금지
+  coopSend({type:'welcome',skin:meta.skin});
+  if(wasInGame){coopSend({type:'resync',skin:meta.skin});coop.sendTick=100}
+  else coopShowLobby();
+ }else{
+  coopSend({type:'hello',skin:meta.skin});
+  if(!wasInGame)coopShowLobby();
+ }
+});
  conn.on('data',msg=>{if(coop.conn!==conn||!msg||typeof msg!=='object')return;coopReceive(msg)});
- conn.on('close',()=>{if(coop.conn===conn)coopDrop(role==='host'?'친구가 방에서 나갔어.':'방장이 연결을 종료했어.')});
- conn.on('error',()=>{if(coop.conn===conn)coopDrop('통신 오류가 발생했어.')});}
+ conn.on('close',()=>coopConnectionLost(conn,'연결이 잠깐 끊겼어.'));
+ conn.on('error',err=>{console.warn('협동 통신 오류',err);coopConnectionLost(conn,'네트워크 통신에 문제가 생겼어.')});}
 function coopReceive(msg){if(msg.type==='full'){coopDrop('이미 2명이 입장한 방이야.');return}
  if(msg.type==='leave'){coopDrop('상대방이 방을 나갔어.');return}
  if(coop.mode==='host'){
@@ -1028,8 +1090,9 @@ function coopReceive(msg){if(msg.type==='full'){coopDrop('이미 2명이 입장�
   if(msg.type==='input'){const x=Number(msg.x)||0,y=Number(msg.y)||0;const d=Math.max(1,Math.hypot(x,y));coop.remoteInput.x=Math.max(-1,Math.min(1,x/d));coop.remoteInput.y=Math.max(-1,Math.min(1,y/d));if(msg.dash)coop.remoteInput.dash=true}
   if(msg.type==='upgrade'&&typeof msg.id==='string'&&coop.inGame)coopAllyApplyUpgrade(msg.id);
  }else if(coop.mode==='guest'){
-  if(msg.type==='welcome'){coop.hostSkin=typeof msg.skin==='string'&&imgs[msg.skin]?msg.skin:'star';coopShowLobby()}
-  if(msg.type==='start'){coop.hostSkin=typeof msg.skin==='string'&&imgs[msg.skin]?msg.skin:'star';coop.inGame=true;coopOverlay(false);init(true);coopPillText()}
+  if(msg.type==='welcome'){coop.hostSkin=typeof msg.skin==='string'&&imgs[msg.skin]?msg.skin:'star';if(!coop.inGame)coopShowLobby()}
+  if(msg.type==='resync'){coop.hostSkin=typeof msg.skin==='string'&&imgs[msg.skin]?msg.skin:'star';const needsInit=!coop.inGame||scene!=='play'||!s;coop.inGame=true;coopOverlay(false);if(needsInit)init(true);coopPillText()}
+  if(msg.type==='start'){coop.hostSkin=typeof msg.skin==='string'&&imgs[msg.skin]?msg.skin:'star';const needsInit=!coop.inGame||scene!=='play'||!s;coop.inGame=true;coopOverlay(false);if(needsInit)init(true);coopPillText()}
   if(msg.type==='state'&&coop.inGame&&s&&scene==='play'){coopApplyState(msg)}
   if(msg.type==='result'&&coop.inGame){coopGuestResult(msg)}
  }}
@@ -1041,7 +1104,7 @@ function coopHurtAlly(amt){const ally=coop.ally;if(!ally||ally.hp<=0||ally.upQue
 }
 function coopValidTarget(character,isHost){return !!character&&character.hp>0&&!character.choosing&&!(character.upQueue>0)&&!(isHost&&coop.hostChoosing)}
 function coopNextTarget(enemy){let p=s.player,a=coop.mode==='host'?coop.ally:null;
- let hostOkay=coopValidTarget(p,true),allyOkay=coopValidTarget(a,false);
+ let hostOkay=coopValidTarget(p,true),allyOkay=!!coop.conn?.open&&!coop.reconnecting&&coopValidTarget(a,false);
  if(hostOkay&&allyOkay)return dist(enemy,a)<dist(enemy,p)?a:p;
  return hostOkay?p:allyOkay?a:null;
 }
@@ -1108,13 +1171,16 @@ function coopChooseGuestUpgrade(){
    coopSend({type:'upgrade',id:button.dataset.friendUp});forceClose();
  });
 }
-function coopGuestInput(dt){if(coop.mode!=='guest'||scene!=='play'||!coop.inGame)return;coop.inputTick+=dt;
+function coopGuestInput(dt){if(coop.mode!=='guest'||scene!=='play'||!coop.inGame)return;if(!coop.conn?.open){coopConnectionMessage('📡 재연결 중… · 진행 상황을 유지하고 있어');return}coop.inputTick+=dt;
  if(coop.inputTick>=.05){coop.inputTick=0;let dx=Number(!!keys.d)+Number(!!keys.ArrowRight)-Number(!!keys.a)-Number(!!keys.ArrowLeft)+stick.x;let dy=Number(!!keys.s)+Number(!!keys.ArrowDown)-Number(!!keys.w)-Number(!!keys.ArrowUp)+stick.y;
  if(coop.guestChoosing||coop.guestChoiceWaiting||s.player.hp<=0){dx=0;dy=0;}const len=Math.hypot(dx,dy),scale=Math.max(1,len);coopSend({type:'input',x:dx/scale,y:dy/scale,dash:coop.guestDash});coop.guestDash=false;}
  if(s?.player){camera.x+=(s.player.x-camera.x)*Math.min(1,dt*7);camera.y+=(s.player.y-camera.y)*Math.min(1,dt*7)}
 }
 function coopBroadcast(dt){coopPillText();if(coop.mode!=='host'||!coop.conn?.open||!coop.inGame||!s||scene!=='play')return;
- coop.sendTick+=dt;if(coop.sendTick<.083)return;coop.sendTick=0;
+ coop.sendTick+=dt;if(coop.sendTick<.11)return;coop.sendTick=0;
+ // The WebRTC channel must catch up before accepting another full snapshot.
+ // Dropping a visual frame is much safer than unbounded data-channel buffering.
+ try{if((coop.conn._dc?.bufferedAmount||0)>320000)return}catch(e){}
  const small=(a,fields)=>a.map(o=>Object.fromEntries(fields.map(k=>[k,o[k]])));
  const pack={type:'state',pause:paused,game:{world:s.world,wave:s.wave,globalWave:s.globalWave,phase:s.phase,elapsed:s.elapsed,time:s.time,score:s.score,lvl:s.lvl,xp:s.xp,xpGoal:s.xpGoal,coins:s.coins,gems:s.gems,combo:s.combo,kills:s.kills,
   player:{...s.player},ally:{...coop.ally},runUp:s.runUp,fusions:s.fusions,
@@ -1137,7 +1203,7 @@ function coopApplyState(msg){let g=msg.game;if(!g||typeof g!=='object')return;co
  if(coop.guestChoiceWaiting&&g.ally&&g.ally.upQueue<coop.guestQueueBefore)coop.guestChoiceWaiting=false;
  coopPillText();updateHUD();
  if(g.ally&&g.ally.upQueue>0&&!coop.guestChoosing&&!coop.guestChoiceWaiting&&!$('#dialogLayer').classList.contains('open'))coopChooseGuestUpgrade();
- const wait=coopEl('coopWait');wait.textContent=coop.guestChoosing?'✨ 스킬을 선택하세요':g.phase==='rest'?'⏳ 다음 웨이브 준비 중…':msg.pause?'⏸ 일시정지 중':'';wait.classList.toggle('on',!!wait.textContent);
+ const wait=coopEl('coopWait');wait.textContent=coop.reconnecting?'📡 자동 재연결 중…':coop.guestChoosing?'✨ 스킬을 선택하세요':g.phase==='rest'?'⏳ 다음 웨이브 준비 중…':msg.pause?'⏸ 일시정지 중':'';wait.classList.toggle('on',!!wait.textContent);
 }
 function coopGuestResult(msg){if(!coop.inGame)return;coop.inGame=false;const coins=Math.max(0,Math.min(100000,Math.floor(Number(msg.coins)||0)));
  meta.bank+=coins;meta.best=Math.max(meta.best,Number(msg.score)||0);meta.kill+=Math.max(0,Math.floor(Number(msg.kills)||0));meta.wins+=Math.max(0,Math.floor(Number(msg.bosses)||0));meta.highestWorld=Math.max(meta.highestWorld,Number(msg.world)||1);save();
