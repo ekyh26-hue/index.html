@@ -247,6 +247,8 @@ const rankNames=['견습 탐험가','별빛 수집가','보물 사냥꾼','행�
 function rankI(){return Math.min(4,Math.floor(meta.best/2200))}
 function homeUpdate(){ if(typeof updateFusionCodexCount==='function')updateFusionCodexCount(); $('#bankNum').textContent=num(meta.bank);$('#bestNum').textContent=num(meta.best);$('#killNum').textContent=num(meta.kill);$('#homeRank').src=ASSETS['tier'+(rankI()+1)];$('#rankName').textContent=rankNames[rankI()]; }
 const upgrades=[
+{id:'slash',name:'참격',desc:'검기를 앞으로 날려 적을 베어냄 · 6레벨 초월 시 참격 난사 10발',icon:'swords',rarity:'epic',max:6},
+{id:'necromancer',name:'네크로맨서',desc:'일정 확률로 쓰러뜨린 몬스터를 아군으로 되살림 (최대 체력 50%) · 초월 시 약한 특수공격',icon:'shield',rarity:'epic',max:6},
 {id:'redReversal',name:'빨강 혁',desc:'붉은 빛의 구체가 적을 추적해 강타',icon:'bomb',rarity:'epic',max:6},
 {id:'blueLapse',name:'파랑 창',desc:'푸른 구체가 360° 회전하며 적을 공격',icon:'crystal',rarity:'epic',max:6},
 
@@ -266,7 +268,7 @@ const upgrades=[
 for(const u of upgrades){if(u.id!=='heal')u.max=6;}
 const FUSIONS=[
 {id:'hollowPurple',a:'redReversal',b:'blueLapse',name:'허식 자',desc:'빨강 혁 + 파랑 창 · 보랏빛 구체 성장 후 초대형 폭발',icon:'rainbow',color:'#c880ff'},
-{id:'luckyLaser',a:'crit',b:'pierce',name:'행운 레이저',desc:'치명적인 행운 + 관통 레이저 · 가끔 초록 레이저 발사, 전부 관통하고 강력한 치명타',icon:'bolt',color:'#74ff9b'},
+{id:'luckyLaser',a:'crit',b:'pierce',name:'행운 레이저',desc:'치명적인 행운 + 관통 레이저 · 더 넓고 멀리 뻗는 초록 레이저, 대폭 강화된 치명타',icon:'bolt',color:'#74ff9b'},
 {id:'thunderNova',a:'lightning',b:'blast',name:'뇌광 폭풍',desc:'연쇄 번개 + 초신성 충격파 · 푸른 번개 충격파가 퍼지고 적들에게 연쇄 감전',icon:'star',color:'#6fe9ff'},
 {id:'astralGuardian',a:'orb',b:'hp',name:'성운 수호자',desc:'궤도 크리스탈 + 불멸의 방패 · 보호막 재충전, 회복, 수정 폭발',icon:'shield',color:'#80ffdf'},
 {id:'starBarrage',a:'rate',b:'multishot',name:'혜성 탄막',desc:'속사 포화 + 트리플 샷 · 연속으로 쏟아지는 황금색 관통 탄막',icon:'power_star',color:'#ffe278'}
@@ -324,7 +326,7 @@ function forceClose(){mandatory=false;closeModal()}
 $('#dialogLayer').addEventListener('click',e=>{if(e.target===$('#dialogLayer')&&!mandatory)closeModal()});
 function init(isCoopGuest=false){if(!isCoopGuest){meta.played++;save();}scene='play';paused=false; elapsed=0;anim=0;shake=0;camera={x:0,y:0};
  const mhp=110+meta.permanent.hp*12+armorStats().hp+skillRank('d0')*10+skillRank('d8')*60;
- s={world:1,wave:1,globalWave:1,phase:'combat',time:29,elapsed:0,spawn:0,shot:0,score:0,earned:0,coins:0,gems:0,xp:0,xpGoal:17,lvl:1,kills:0,maxCombo:0,combo:0,comboT:0,bosses:0,chests:0,seenChest:false,levelQueue:0,upgradeCount:0,runUp:{},fusions:[],specialFx:[],specialClock:{},
+ s={world:1,wave:1,globalWave:1,phase:'combat',time:29,elapsed:0,spawn:0,shot:0,score:0,earned:0,coins:0,gems:0,xp:0,xpGoal:17,lvl:1,kills:0,maxCombo:0,combo:0,comboT:0,bosses:0,chests:0,seenChest:false,levelQueue:0,upgradeCount:0,runUp:{},fusions:[],specialFx:[],specialClock:{},minions:[],
  player:{x:0,y:0,vx:0,vy:0,r:24,hp:mhp,maxHP:mhp,inv:0,dash:0,dashTime:0,dashDx:0,dashDy:0,speed:300+meta.permanent.speed*12,rot:0,fxTick:0,regenTick:0,dashHitTick:0},enemies:[],bullets:[],badBullets:[],drops:[],particles:[],floats:[],rings:[],vfx:[],boss:null};
  if(coop.mode==='host'&&coop.conn?.open)coop.ally=coopMakeAlly();syncMode();banner('🚀 탐험 시작!',LEVELS[0],1600);toast('star','목표: 5웨이브 보스 처치','이동하면 자동으로 공격해요!');sound(560,'sine',.32,.06,600);updateHUD();}
 function U(id){return s?.runUp[id]||0}
@@ -336,10 +338,10 @@ function enemySpawn(type,x,y,extra={}){const k=s.globalWave,scaleEnemy=1+.16*(k-
  let [hp,spd,r]=stats; hp*=scaleEnemy; if(type==='boss')hp=900*Math.pow(1.42,s.world-1)+s.globalWave*70;
  const e={type,x,y,vx:0,vy:0,hp,maxHP:hp,r,speed:spd* Math.min(1.65,1+.028*k),hit:0,angle:0,fire:rand(.8,2.2),phase:Math.random()*6.3,dashCd:rand(3.0,5.5),lastOrb:0,...extra};s.enemies.push(e);return e;}
 function spawnEnemy(){const weights=['chaser','chaser','chaser','runner'];if(s.globalWave>=2)weights.push('shooter');if(s.globalWave>=3)weights.push('tank');if(s.globalWave>=7)weights.push('runner','shooter');const type=weights[rnd(0,weights.length-1)];let focus=(coop.mode==='host'&&coop.ally&&Math.random()<.5)?coop.ally:s.player;let a=rand(0,Math.PI*2),r=rand(470,580);let x=clamp(focus.x+Math.cos(a)*r,-world.w/2+60,world.w/2-60),y=clamp(focus.y+Math.sin(a)*r,-world.h/2+60,world.h/2-60);enemySpawn(type,x,y);}
-function startWave(){s.phase='combat';s.time=27+Math.min(15,s.world*2+s.wave*2);s.spawn=0;s.seenChest=false;s.boss=null;s.lastBossXP=0;s.badBullets.length=0;s.enemies.length=0;s.combo=0;
+function startWave(){s.phase='combat';s.time=27+Math.min(15,s.world*2+s.wave*2);s.spawn=0;s.seenChest=false;s.boss=null;s.lastBossXP=0;s.badBullets.length=0;s.enemies.length=0;s.minions=[];s.combo=0;
  if(s.wave===5){s.phase='boss';s.time=99;let a=enemySpawn('boss',s.player.x,s.player.y-360);s.boss=a;portalFx(a.x,a.y,'#c76cff',1.4);groundFx(a.x,a.y,'#ff9a4b',1.05);banner('⚠ 보스 접근!',`${LEVELS[(s.world-1)%5]} 수호자`,2200);snd.boss()}else{banner(`WAVE ${s.wave}`,LEVELS[(s.world-1)%5],1350)}
  syncMode();updateHUD()}
-function afterWave(){s.phase='rest';s.enemies=[];s.badBullets=[];s.boss=null;paused=true;if(coop.mode==='host'&&coop.ally){if(coop.ally.hp<=0)coop.ally.hp=Math.ceil(coop.ally.maxHP*.4);if(s.player.hp<=0)s.player.hp=Math.ceil(s.player.maxHP*.4);}
+function afterWave(){s.phase='rest';s.enemies=[];s.badBullets=[];s.minions=[];s.boss=null;paused=true;if(coop.mode==='host'&&coop.ally){if(coop.ally.hp<=0)coop.ally.hp=Math.ceil(coop.ally.maxHP*.4);if(s.player.hp<=0)s.player.hp=Math.ceil(s.player.maxHP*.4);}
  const bonus=15+s.wave*8+s.world*5;s.coins+=bonus;s.earned+=bonus;s.score+=s.wave*75;s.combo=0;
  shower(s.player.x,s.player.y,25,'#ffdf81',220);sigilFx(s.player.x,s.player.y,'#ffd85d',1.15);snd.win();toast(s.lastBossXP?'star':'coin',s.lastBossXP?'보스 처치! 경험치 대량 획득!':'웨이브 클리어!',s.lastBossXP?`경험치 +${s.lastBossXP} · 코인 +${bonus}`:`보너스 코인 +${bonus}`);
  if(s.wave===5){s.world++;s.wave=1;s.bosses++;meta.highestWorld=Math.max(meta.highestWorld,s.world);s.score+=1000; s.gems+=7;achieve();banner('🌌 행성 돌파!',`다음 행성: ${LEVELS[(s.world-1)%5]}`,2800);}else s.wave++;
@@ -368,7 +370,76 @@ function awardBossExperience(x,y){
  if(levels>0){snd.level();spiralFx(s.player.x,s.player.y,'#7dffae',1.4)}
  updateHUD();
 }
-function enemyDie(e){if(e.dead)return;e.dead=true;if(e.type==='boss'){if(skillRank('d7'))s.player.hp=Math.min(s.player.maxHP,s.player.hp+skillRank('d7')*20);awardBossExperience(e.x,e.y);s.boss=null;s.score+=420;s.kills++;s.combo++;s.maxCombo=Math.max(s.maxCombo,s.combo);shower(e.x,e.y,85,'#ff84d8',370);portalFx(e.x,e.y,'#d76cff',1.45);groundFx(e.x,e.y,'#ff9d4c',1.18);rings(e.x,e.y,400,'#ff73d9');drop(e.x,e.y,'chest',1);afterWave();return}
+
+// NECROMANCER — raised creatures are friendly allies, not resurrected bosses.
+function necroLevel(owner){return owner==='ally'?(coop.mode==='host'?(coop.ally?.runUp?.necromancer||0):0):U('necromancer')}
+function tryReanimate(enemy,owner='host'){
+ if(!s||enemy.type==='boss'||owner==='summon'||enemy.summoned)return;
+ const lvl=necroLevel(owner);if(!lvl)return;
+ const chance=Math.min(.44,.085+lvl*.055),cap=lvl>=6?12:Math.min(9,3+lvl);
+ if(s.minions.filter(m=>m.owner===owner).length>=cap||Math.random()>=chance)return;
+ const maxHP=Math.max(1,Math.ceil(enemy.maxHP*.5));
+ s.minions.push({owner,type:enemy.type,x:enemy.x,y:enemy.y,r:Math.min(23,Math.max(12,enemy.r*.85)),hp:maxHP,maxHP,inv:.5,age:0,life:lvl>=6?36:26,
+  atkCd:.45+Math.random()*.4,spellCd:2.1+Math.random(),angle:Math.random()*6.28,level:lvl});
+ spiralFx(enemy.x,enemy.y,lvl>=6?'#d68cff':'#86ffb4',.85);
+ floatText(enemy.x,enemy.y-30,'+아군','#a9ffce',13);
+}
+function closestEnemy(x,y,maxDist=700){let selected=null,best=maxDist;for(const e of s.enemies){if(e.dead)continue;let d=Math.hypot(e.x-x,e.y-y);if(d<best){best=d;selected=e}}return selected;}
+function launchSlashes(player,lvl,owner='host'){
+ const target=closestEnemy(player.x,player.y,700);if(!target)return;
+ const fan=lvl>=6?10:1,base=Math.atan2(target.y-player.y,target.x-player.x);
+ for(let i=0;i<fan;i++){
+  const a=base+(i-(fan-1)/2)*(fan===1?0:.095);
+  s.specialFx.push({type:'slashWave',owner,x:player.x,y:player.y,angle:a,t:-(lvl>=6?i*.067:0),life:1.05,lv:lvl,hitList:new Set(),started:false});
+ }
+ if(lvl>=6){sigilFx(player.x,player.y,'#e99cff',.85);}
+}
+function updateMinions(dt){
+ if(!s?.minions?.length)return;
+ for(const m of s.minions){
+  m.age+=dt;m.inv=Math.max(0,(m.inv||0)-dt);m.atkCd-=dt;m.spellCd-=dt;
+  const owner=m.owner==='ally'?coop.ally:s.player;
+  const target=closestEnemy(m.x,m.y,680);
+  const goal=target||(owner?.hp>0?owner:s.player);
+  if(goal){let dx=goal.x-m.x,dy=goal.y-m.y,dd=Math.hypot(dx,dy)||1;
+    if(dd>(target?m.r+goal.r+20:60)){const sp=target?Math.min(185,106+m.level*11):120;m.x+=dx/dd*sp*dt;m.y+=dy/dd*sp*dt;}
+    m.angle=Math.atan2(dy,dx);
+    if(target&&dd<target.r+m.r+30&&m.atkCd<=0){m.atkCd=Math.max(.48,1.12-m.level*.065);
+      hurtEnemy(target,8+m.level*3,false,'summon');slashFx(target.x,target.y,m.angle,m.level>=6?'#db9cff':'#86ffb1',.46);
+    }
+    // Transcended summons use very weak versions of the fallen monster's attack.
+    if(target&&m.level>=6&&dd<410&&m.spellCd<=0){m.spellCd=3.4+Math.random()*1.2;
+      if(m.type==='shooter'){
+        let a=Math.atan2(target.y-m.y,target.x-m.x);
+        s.bullets.push({x:m.x,y:m.y,vx:Math.cos(a)*330,vy:Math.sin(a)*330,r:4,life:1.35,damage:12,crit:false,pierce:0,hit:new Set(),friend:m.owner==='ally',raised:true});
+        muzzleFx(m.x,m.y,a,'#c68cff',.45);
+      }else if(m.type==='runner'){
+        m.x+=Math.cos(m.angle)*28;m.y+=Math.sin(m.angle)*28;
+        if(dd<125)hurtEnemy(target,13,false,'summon');spiralFx(m.x,m.y,'#a18bff',.55);
+      }else{
+        impactFx(m.x,m.y,'#b17dff',.48);
+        for(const e of s.enemies){if(!e.dead&&Math.hypot(m.x-e.x,m.y-e.y)<88)hurtEnemy(e,10,false,'summon')}
+      }
+    }
+  }
+ }
+ s.minions=s.minions.filter(m=>m.hp>0&&m.age<m.life);
+}
+function drawMinions(){
+ if(!s?.minions)return;ctx.save();
+ for(const m of s.minions){ctx.save();ctx.translate(m.x,m.y);let p=1+Math.sin(s.elapsed*6+m.angle)*.06;ctx.scale(p,p);
+   ctx.globalAlpha=m.inv>0?.53:.95;ctx.shadowBlur=17;ctx.shadowColor=m.level>=6?'#b962ff':'#38eda4';
+   ctx.fillStyle=m.level>=6?'#633b95':'#245d60';ctx.strokeStyle=m.level>=6?'#e5a5ff':'#79ffd0';ctx.lineWidth=3;
+   polygon(0,0,m.r,m.type==='runner'?3:m.type==='tank'?6:5,s.elapsed*.3);
+   ctx.fill();ctx.stroke();circle(-4,-3,3,'#ecfff9');circle(6,-3,3,'#ecfff9');
+   ctx.strokeStyle='#b5ffe4';ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(-5,5);ctx.lineTo(5,5);ctx.stroke();
+   ctx.restore();
+   ctx.fillStyle='#122139b8';ctx.fillRect(m.x-20,m.y-m.r-13,40,4);ctx.fillStyle=m.level>=6?'#d29fff':'#65eeb7';ctx.fillRect(m.x-20,m.y-m.r-13,40*clamp(m.hp/m.maxHP,0,1),4);
+ }ctx.restore();
+}
+
+function enemyDie(e,killer='host'){if(e.dead)return;e.dead=true;if(e.type==='boss'){if(skillRank('d7'))s.player.hp=Math.min(s.player.maxHP,s.player.hp+skillRank('d7')*20);awardBossExperience(e.x,e.y);s.boss=null;s.score+=420;s.kills++;s.combo++;s.maxCombo=Math.max(s.maxCombo,s.combo);shower(e.x,e.y,85,'#ff84d8',370);portalFx(e.x,e.y,'#d76cff',1.45);groundFx(e.x,e.y,'#ff9d4c',1.18);rings(e.x,e.y,400,'#ff73d9');drop(e.x,e.y,'chest',1);afterWave();return}
+ tryReanimate(e,killer);
  s.kills++;s.score+=20+Math.min(300,s.combo*3);s.combo++;s.comboT=3.8;s.maxCombo=Math.max(s.maxCombo,s.combo);
  impactFx(e.x,e.y,e.type==='runner'?'#f8a6ff':e.type==='shooter'?'#69f1ff':'#ffc77a',e.type==='tank'?1.2:1);shower(e.x,e.y,e.type==='tank'?19:8,e.type==='runner'?'#f8a6ff':e.type==='shooter'?'#69f1ff':'#ffc77a',125);
  if(Math.random()<.72)drop(e.x,e.y,'xp',e.type==='tank'?7:e.type==='shooter'?5:3);
@@ -378,7 +449,7 @@ function enemyDie(e){if(e.dead)return;e.dead=true;if(e.type==='boss'){if(skillRa
  if(Math.random()<.013)drop(e.x,e.y,'heal',1);
  if(s.kills%10===0)floatText(s.player.x,s.player.y-85,`${s.kills} KILLS!`,'#8ceaff',24);
  achieve();}
-function hurtEnemy(e,amt,isCrit=false){if(e.dead)return;e.hp-=amt;e.hit=.16;floatText(e.x+rand(-10,10),e.y-19,Math.ceil(amt),isCrit?'#ffde87':'#eafaff',isCrit?20:14);if(isCrit){shower(e.x,e.y,4,'#ffd060',80);impactFx(e.x,e.y,'#ffd060',1.12)}if(e.hp<=0)enemyDie(e)}
+function hurtEnemy(e,amt,isCrit=false,killer='host'){if(e.dead)return;e.hp-=amt;e.hit=.16;floatText(e.x+rand(-10,10),e.y-19,Math.ceil(amt),isCrit?'#ffde87':'#eafaff',isCrit?20:14);if(isCrit){shower(e.x,e.y,4,'#ffd060',80);impactFx(e.x,e.y,'#ffd060',1.12)}if(e.hp<=0)enemyDie(e,killer)}
 function hurtPlayer(amt){let p=s.player;if(p.hp<=0||(coop.mode==='host'&&coop.hostChoosing)||p.inv>0||p.dashTime>0||s.phase==='rest')return;
  if(fusionOwned('astralGuardian')&&s.guardianShield>0){s.guardianShield=0;portalFx(p.x,p.y,'#79ffe0',1.0);rings(p.x,p.y,94,'#68ffdd');floatText(p.x,p.y-49,'SHIELD!','#9cffe7',23);return;}if(Math.random()<skillRank('m4')*.03){floatText(p.x,p.y-30,'DODGE!','#86efff',18);return}let reduction=armorStats().defense+skillRank('d1')*.03+(amt>=25?skillRank('d4')*.06:0)+(p.hp<p.maxHP*.3?skillRank('d6')*.12:0);p.hp-=Math.max(1,amt*(1-clamp(reduction,0,.8)));p.inv=.58+skillRank('d3')*.12;shake=Math.min(18,shake+9);snd.hit();shower(p.x,p.y,12,'#ff477a',145);impactFx(p.x,p.y,'#ff6b94',1.18);flameFx(p.x,p.y,'#7c6bff',.9);floatText(p.x,p.y-47,`-${Math.ceil(amt)}`,'#ff7c9a',25);if(p.hp<=0){p.hp=0;if(coop.mode!=='host'||!coop.ally||coop.ally.hp<=0)gameOver();else floatText(p.x,p.y-65,'쓰러짐!','#ff9bb2',22)}}
 function spawnBurst(e){let n=10+Math.min(10,s.world*2);for(let j=0;j<n;j++){let a=Math.PI*2*j/n+s.elapsed*.7;s.badBullets.push({x:e.x,y:e.y,vx:Math.cos(a)*175,vy:Math.sin(a)*175,r:9,life:5,damage:12+s.world*1.5})}groundFx(e.x,e.y,'#ff9548',1.05);rings(e.x,e.y,280,'#fd8bb1');snd.boss()}
@@ -642,7 +713,7 @@ function groundFx(x,y,color='#ff9b48',scale=1){fxPush({type:'ground',x,y,life:.3
 function sigilFx(x,y,color='#ffd85d',scale=1){fxPush({type:'sigil',x,y,life:.5,max:.5,r:44*scale,color});}
 function muzzleFx(x,y,rot,color='#63d9ff',scale=1){fxPush({type:'shot',x,y,rot,life:.16,max:.16,r:30*scale,color});}
 
-function playerShotImpact(b,e){hurtEnemy(e,b.damage*(e.type==='boss'?1+skillRank('a5')*.08:1),b.crit);if(skillRank('g1')>0&&Math.random()<skillRank('g1')*.08){e.burnTime=2.5;e.burnTick=0}if(skillRank('g2')>0&&Math.random()<skillRank('g2')*.08){e.frostTime=1.7+skillRank('g5')*.7}impactFx(b.x,b.y,b.crit?'#ffd572':'#7edfff',b.crit?1.35:1);slashFx(b.x,b.y,Math.atan2(b.vy,b.vx),b.crit?'#ffd572':'#7edfff',b.crit?1.18:1);let chainLvl=b.friend?(coop.ally?.runUp?.lightning||0):U('lightning');if((chainLvl>0||skillRank('g4')>0)&&Math.random()<.14+chainLvl*.08+skillRank('g4')*.10){let second=s.enemies.filter(q=>q!==e&&!q.dead&&dist(q,e)<135).slice(0,2+Math.floor(chainLvl/2));for(let t of second){s.rings.push({x:t.x,y:t.y,r:0,max:35,life:.2,color:'#8aeaff'});portalFx(t.x,t.y,'#7ef6ff',.72);hurtEnemy(t,b.damage*(.28+chainLvl*.09+skillRank('g0')*.08))}}shower(b.x,b.y,3,'#a8eeff',75);}
+function playerShotImpact(b,e){hurtEnemy(e,b.damage*(e.type==='boss'?1+skillRank('a5')*.08:1),b.crit,b.friend?'ally':'host');if(skillRank('g1')>0&&Math.random()<skillRank('g1')*.08){e.burnTime=2.5;e.burnTick=0}if(skillRank('g2')>0&&Math.random()<skillRank('g2')*.08){e.frostTime=1.7+skillRank('g5')*.7}impactFx(b.x,b.y,b.crit?'#ffd572':'#7edfff',b.crit?1.35:1);slashFx(b.x,b.y,Math.atan2(b.vy,b.vx),b.crit?'#ffd572':'#7edfff',b.crit?1.18:1);let chainLvl=b.friend?(coop.ally?.runUp?.lightning||0):U('lightning');if((chainLvl>0||skillRank('g4')>0)&&Math.random()<.14+chainLvl*.08+skillRank('g4')*.10){let second=s.enemies.filter(q=>q!==e&&!q.dead&&dist(q,e)<135).slice(0,2+Math.floor(chainLvl/2));for(let t of second){s.rings.push({x:t.x,y:t.y,r:0,max:35,life:.2,color:'#8aeaff'});portalFx(t.x,t.y,'#7ef6ff',.72);hurtEnemy(t,b.damage*(.28+chainLvl*.09+skillRank('g0')*.08),false,b.friend?'ally':'host')}}shower(b.x,b.y,3,'#a8eeff',75);}
 function update(dt){elapsed+=dt;anim+=dt;if(coop.mode==='guest'&&scene==='play'){coopGuestInput(dt);return;}if(!s||scene!=='play'||paused)return;updateSpecials(dt);
  s.elapsed+=dt;s.time-=dt;let p=s.player;p.regenTick=(p.regenTick||0)+dt;if((skillRank('d2')||skillRank('d8'))&&p.hp<p.maxHP&&p.regenTick>=.5){p.hp=Math.min(p.maxHP,p.hp+(.6*skillRank('d2')+skillRank('d8'))*p.regenTick);p.regenTick=0}
  p.inv=Math.max(0,p.inv-dt);p.dash=Math.max(0,p.dash-dt);p.dashTime=Math.max(0,p.dashTime-dt);
@@ -668,8 +739,10 @@ function update(dt){elapsed+=dt;anim+=dt;if(coop.mode==='guest'&&scene==='play')
    e.x+=(-dy/dd)*Math.sin(s.elapsed*2+e.phase)*28*dt;e.y+=(dx/dd)*Math.sin(s.elapsed*2+e.phase)*28*dt;
    e.fire-=dt;if(e.fire<=0&&dd<650){s.badBullets.push({x:e.x,y:e.y,vx:dx/dd*230,vy:dy/dd*230,r:7,life:3.4,damage:12+s.world*1.6});e.fire=rand(1.7,2.5)}
   }else{e.x+=dx/dd*e.speed*(e.frostTime>0?.5:1)*dt;e.y+=dy/dd*e.speed*(e.frostTime>0?.5:1)*dt}
+  for(const m of s.minions){if(m.inv<=0&&dist(m,e)<e.r+m.r*.75){m.hp-=e.type==='tank'?23:e.type==='boss'?35:14;m.inv=.85;impactFx(m.x,m.y,'#6ce7b1',.45);}}
   if(p.hp>0&&dist(p,e)<e.r+p.r*.8){if(p.dashTime>0&&skillRank('m6')>0&&(!e.lastDashHit||s.elapsed-e.lastDashHit>.2)){e.lastDashHit=s.elapsed;hurtEnemy(e,16*skillRank('m6'));impactFx(e.x,e.y,'#8ceeff',.7)}else hurtPlayer(e.type==='boss'?28:e.type==='tank'?18:12)}if(coop.ally&&coop.mode==='host'&&coop.ally.hp>0&&dist(coop.ally,e)<e.r+coop.ally.r*.8){coopHurtAlly(e.type==='boss'?28:e.type==='tank'?18:12)}
  }
+ updateMinions(dt);
  for(let i=s.bullets.length-1;i>=0;i--){const b=s.bullets[i];b.life-=dt;b.x+=b.vx*dt;b.y+=b.vy*dt;let remove=b.life<=0;if(!remove){for(const e of s.enemies){if(e.dead||b.hit.has(e))continue;if((b.x-e.x)**2+(b.y-e.y)**2<(b.r+e.r)**2){b.hit.add(e);playerShotImpact(b,e);if(b.pierce<=0){remove=true;break}else b.pierce--}}}if(remove)s.bullets.splice(i,1)}
  for(let i=s.badBullets.length-1;i>=0;i--){const b=s.badBullets[i];b.life-=dt;b.x+=b.vx*dt;b.y+=b.vy*dt;if(dist(b,p)<b.r+p.r*.7){hurtPlayer(b.damage);b.life=-1;shower(b.x,b.y,5,'#ff8bbc',90)}else if(coop.ally&&coop.mode==='host'&&dist(b,coop.ally)<b.r+coop.ally.r*.7){coopHurtAlly(b.damage);b.life=-1;shower(b.x,b.y,5,'#ff8bbc',90)}if(b.life<=0)s.badBullets.splice(i,1)}
  if(U('orb')+skillRank('g6')>0){for(let j=0;j<U('orb')+skillRank('g6');j++){let a=s.elapsed*2.45+j*Math.PI*2/(U('orb')+skillRank('g6')),x=p.x+Math.cos(a)*86,y=p.y+Math.sin(a)*86;for(const e of s.enemies){if(e.dead)continue;if(len(x-e.x,y-e.y)<e.r+16&&s.elapsed-e.lastOrb>.34){e.lastOrb=s.elapsed;hurtEnemy(e,(13+U('orb')*5)*(1+skillRank('g0')*.08))}}}}
@@ -773,6 +846,12 @@ function updateSpecials(dt){
    if(key==='purple')s.specialFx.push({type:'purple',x:p.x,y:p.y,t:0,life:1.7,hit:false});
   }
  }
+ // Slash skill has an independent cooldown; level 6 fires a rapid volley of 10 slashes.
+ const slashLvl=U('slash');if(slashLvl>0&&p.hp>0&&!coop.hostChoosing){
+   s.specialClock.slash=(s.specialClock.slash||0)+dt;
+   const interval=slashLvl>=6?4.4:Math.max(1.65,3.25-slashLvl*.23);
+   if(s.specialClock.slash>=interval){s.specialClock.slash=0;launchSlashes(p,slashLvl,'host')}
+ }
  // New fusion abilities. Every fusion has its own cooldown, without replacing its two parent skills.
  const fusions=s.fusions||[];
  if(fusions.includes('luckyLaser')){
@@ -796,16 +875,30 @@ function updateSpecials(dt){
    }
  }
  for(const fx of s.specialFx){fx.t+=dt;
+  if(fx.type==='slashWave'){
+   if(fx.t<0)continue;
+   if(!fx.started){fx.started=true;const owner=fx.owner==='ally'?coop.ally:s.player;
+     if(owner?.hp>0){fx.x=owner.x+Math.cos(fx.angle)*35;fx.y=owner.y+Math.sin(fx.angle)*35;}
+     slashFx(fx.x,fx.y,fx.angle,fx.lv>=6?'#cf8dff':'#67d7ff',.67);
+   }
+   const velocity=fx.lv>=6?680:520;fx.x+=Math.cos(fx.angle)*velocity*dt;fx.y+=Math.sin(fx.angle)*velocity*dt;
+   for(const e of s.enemies){if(e.dead||fx.hitList.has(e))continue;
+     const dx=e.x-fx.x,dy=e.y-fx.y;if(dx*dx+dy*dy<(e.r+(fx.lv>=6?35:27))**2){
+       fx.hitList.add(e);const power=fx.lv>=6?2.3:1.15+fx.lv*.36;
+       hurtEnemy(e,damageVal()*power,false,fx.owner);impactFx(e.x,e.y,fx.lv>=6?'#d593ff':'#68dfff',.9);
+     }
+   }
+  }
   if(fx.type==='luckyLaser'){
     // Keep visual origin attached to the character during the charge, then fire one enormous piercing beam.
     if(!fx.hit&&fx.t>=.29){
-      fx.hit=true;const dirX=Math.cos(fx.angle),dirY=Math.sin(fx.angle),length=1050,width=40;
+      fx.hit=true;const dirX=Math.cos(fx.angle),dirY=Math.sin(fx.angle),length=1480,width=105;
       const affected=s.enemies.filter(e=>!e.dead).slice();
       for(const e of affected){
         const dx=e.x-fx.x,dy=e.y-fx.y,along=dx*dirX+dy*dirY,off=Math.abs(dx*dirY-dy*dirX);
         if(along>=-e.r&&along<=length+e.r&&off<=width+e.r){
           // Crit + piercing properties inherited: every target on the entire beam may be hit.
-          hurtEnemy(e,(fx.coopOwner?(17+meta.permanent.attack*3)*(1+(coop.ally?.runUp?.damage||0)*.22):damageVal())*(8.5+Math.min(6,fx.coopOwner?(coop.ally?.runUp?.crit||0):U('crit'))*.6),true);
+          hurtEnemy(e,(fx.coopOwner?(17+meta.permanent.attack*3)*(1+(coop.ally?.runUp?.damage||0)*.22):damageVal())*(15+Math.min(6,fx.coopOwner?(coop.ally?.runUp?.crit||0):U('crit'))*1.05),true);
           impactFx(e.x,e.y,'#7aff9c',1.4);
         }
       }
@@ -839,6 +932,12 @@ function drawSpecials(){
  }
 
  for(const fx of s.specialFx){let x=fx.x,y=fx.y;
+  if(fx.type==='slashWave'&&fx.t>=0){ctx.save();ctx.translate(x,y);ctx.rotate(fx.angle);ctx.globalCompositeOperation='lighter';
+    const trans=fx.lv>=6,fade=clamp(1-fx.t/fx.life,0,1);ctx.globalAlpha=fade;ctx.shadowBlur=22;ctx.shadowColor=trans?'#bd68ff':'#4fcfff';
+    ctx.strokeStyle=trans?'#e0a6ff':'#82e8ff';ctx.lineWidth=trans?14:10;ctx.lineCap='round';
+    ctx.beginPath();ctx.arc(0,0,trans?43:34,-1.1,1.1);ctx.stroke();ctx.lineWidth=4;ctx.strokeStyle='#ffffff';
+    ctx.beginPath();ctx.arc(0,0,trans?34:26,-1.02,1.03);ctx.stroke();ctx.restore();}
+
   if(fx.type==='red'){let r=fx.lv>=6?27:17;ctx.shadowBlur=28;ctx.shadowColor='#ff183f';circle(x,y,r,fx.lv>=6?'#ff3159':'#c71929');circle(x-5,y-5,r*.4,'#ffe4e5')}
   if(fx.type==='blue'){let n=fx.lv>=6?4:2;for(let i=0;i<n;i++){let a=fx.t*6.5+i*Math.PI*2/n,xx=x+Math.cos(a)*105,yy=y+Math.sin(a)*105;ctx.shadowBlur=24;ctx.shadowColor='#23baff';circle(xx,yy,fx.lv>=6?24:17,'#22bfffbb');circle(xx-4,yy-4,7,'#e6ffff')}}
   if(fx.type==='purple'){let k=Math.min(1,fx.t/1.35),r=18+210*k;ctx.globalAlpha=fx.hit?Math.max(0,(fx.life-fx.t)/.35):.9;ctx.shadowBlur=55;ctx.shadowColor='#a529ff';circle(x,y,r,'#7d20dd');circle(x,y,r*.8,'#c75aff');circle(x,y,r*.46,'#f7c4ff');ctx.globalAlpha=1}
@@ -849,7 +948,7 @@ function drawSpecials(){
     if(!fired){ctx.globalAlpha=.8;ctx.shadowBlur=25;ctx.shadowColor='#59ff8d';circle(8,0,10+fx.t*58,'#5cfa7a');circle(8,0,6,'#ebfff4');}
     else {
       ctx.globalAlpha=life;ctx.shadowBlur=35;ctx.shadowColor='#36ff74';
-      const width=18+24*(1-life),length=1050;
+      const width=64+39*(1-life),length=1480;
       const grad=ctx.createLinearGradient(0,-width,0,width);
       grad.addColorStop(0,'#1c8f5a11');grad.addColorStop(.24,'#3efa82a0');grad.addColorStop(.5,'#f4fff2');grad.addColorStop(.76,'#54ff89a0');grad.addColorStop(1,'#1c8f5a11');
       ctx.fillStyle=grad;ctx.fillRect(0,-width,length,width*2);
@@ -871,7 +970,7 @@ function drawSpecials(){
  }ctx.restore();
 }
 
-function render(){ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle='#0b1128';ctx.fillRect(0,0,viewW,viewH);ctx.save();ctx.translate(viewW/2,viewH/2);ctx.scale(scale,scale);if(shake>1)ctx.translate(rand(-shake,shake),rand(-shake,shake));ctx.translate(-camera.x,-camera.y);drawWorld();if(s&&scene!=='home'){drawDrops();drawBullets();for(const e of s.enemies)drawEnemy(e);drawPlayer();drawCoopPartner();drawSpecials();drawFX()}else{for(let i=0;i<11;i++){let x=Math.sin(i*2.3)*510,y=Math.cos(i*4.7)*230;circle(x,y,1.7,'#c5fbff90')}}ctx.restore();
+function render(){ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle='#0b1128';ctx.fillRect(0,0,viewW,viewH);ctx.save();ctx.translate(viewW/2,viewH/2);ctx.scale(scale,scale);if(shake>1)ctx.translate(rand(-shake,shake),rand(-shake,shake));ctx.translate(-camera.x,-camera.y);drawWorld();if(s&&scene!=='home'){drawDrops();drawBullets();for(const e of s.enemies)drawEnemy(e);drawMinions();drawPlayer();drawCoopPartner();drawSpecials();drawFX()}else{for(let i=0;i<11;i++){let x=Math.sin(i*2.3)*510,y=Math.cos(i*4.7)*230;circle(x,y,1.7,'#c5fbff90')}}ctx.restore();
  if(s&&scene==='play'&&!mobile()){const x=viewW-138,y=viewH-155;ctx.save();ctx.globalAlpha=.77;ctx.fillStyle='#0b153ad9';ctx.strokeStyle='#74baff54';ctx.lineWidth=1;ctx.beginPath();ctx.roundRect(x,y,118,105,12);ctx.fill();ctx.stroke();ctx.fillStyle='#7bbcff66';ctx.fillRect(x+10,y+10,98,85);const fX=98/world.w,fY=85/world.h;for(const e of s.enemies.slice(0,100)){ctx.fillStyle=e.type==='boss'?'#ffa2d5':'#ffbe8a';circle(x+59+e.x*fX,y+53+e.y*fY,e.type==='boss'?4:1.4,ctx.fillStyle)}circle(x+59+s.player.x*fX,y+53+s.player.y*fY,3,'#84ffff');ctx.restore();}
 }
 
@@ -960,10 +1059,11 @@ function coopAllyApplyUpgrade(id){const ally=coop.ally;if(!ally||ally.upQueue<=0
 function coopAllyPowers(dt){const ally=coop.ally;if(!ally||ally.hp<=0||ally.choosing)return;
  const lv=id=>ally.runUp?.[id]||0;ally.powerTick+=dt;if(ally.fusions?.includes('astralGuardian')){ally.guardianCd=(ally.guardianCd||0)+dt;if(ally.guardianCd>13){ally.guardianCd=0;ally.guardianShield=1;}ally.hp=Math.min(ally.maxHP,ally.hp+2*dt);}
  if(lv('orb')>0){const n=lv('orb');for(let j=0;j<n;j++){let angle=s.elapsed*2.5+j*Math.PI*2/n,x=ally.x+Math.cos(angle)*80,y=ally.y+Math.sin(angle)*80;
- for(const e of s.enemies){if(!e.dead&&Math.hypot(e.x-x,e.y-y)<e.r+17&&(e.coopOrbLast||-3)<s.elapsed-.4){e.coopOrbLast=s.elapsed;hurtEnemy(e,11+n*5)}}}}
- if(lv('blast')>0&&ally.powerTick>Math.max(3,7-lv('blast')*.55)){ally.powerTick=0;portalFx(ally.x,ally.y,'#a96eff',1.1);for(const e of s.enemies){if(!e.dead&&dist(e,ally)<190)hurtEnemy(e,20+lv('blast')*15)}}
- if(lv('redReversal')>0){ally.redCd=(ally.redCd||0)-dt;if(ally.redCd<=0){ally.redCd=lv('redReversal')>=6?1.1:2.8;const target=s.enemies.filter(e=>!e.dead).sort((a,b)=>dist(a,ally)-dist(b,ally))[0];if(target&&dist(target,ally)<470){flameFx(target.x,target.y,'#ff3b59',1.15);hurtEnemy(target,(15+lv('redReversal')*13)* (lv('redReversal')>=6?2:1))}}}
- if(lv('blueLapse')>0){const n=lv('blueLapse')>=6?4:2;for(let j=0;j<n;j++){let angle=s.elapsed*5.2+j*Math.PI*2/n,x=ally.x+Math.cos(angle)*103,y=ally.y+Math.sin(angle)*103;for(const e of s.enemies){if(!e.dead&&Math.hypot(e.x-x,e.y-y)<e.r+24&&(e.coopBlueLast||-3)<s.elapsed-.42){e.coopBlueLast=s.elapsed;hurtEnemy(e,9+lv('blueLapse')*6)}}}}
+ for(const e of s.enemies){if(!e.dead&&Math.hypot(e.x-x,e.y-y)<e.r+17&&(e.coopOrbLast||-3)<s.elapsed-.4){e.coopOrbLast=s.elapsed;hurtEnemy(e,11+n*5,false,'ally')}}}}
+ if(lv('blast')>0&&ally.powerTick>Math.max(3,7-lv('blast')*.55)){ally.powerTick=0;portalFx(ally.x,ally.y,'#a96eff',1.1);for(const e of s.enemies){if(!e.dead&&dist(e,ally)<190)hurtEnemy(e,20+lv('blast')*15,false,'ally')}}
+ if(lv('redReversal')>0){ally.redCd=(ally.redCd||0)-dt;if(ally.redCd<=0){ally.redCd=lv('redReversal')>=6?1.1:2.8;const target=s.enemies.filter(e=>!e.dead).sort((a,b)=>dist(a,ally)-dist(b,ally))[0];if(target&&dist(target,ally)<470){flameFx(target.x,target.y,'#ff3b59',1.15);hurtEnemy(target,(15+lv('redReversal')*13)* (lv('redReversal')>=6?2:1),false,'ally')}}}
+ if(lv('slash')>0){ally.slashCd=(ally.slashCd||0)-dt;if(ally.slashCd<=0){ally.slashCd=lv('slash')>=6?4.4:Math.max(1.65,3.25-lv('slash')*.23);launchSlashes(ally,lv('slash'),'ally')}}
+ if(lv('blueLapse')>0){const n=lv('blueLapse')>=6?4:2;for(let j=0;j<n;j++){let angle=s.elapsed*5.2+j*Math.PI*2/n,x=ally.x+Math.cos(angle)*103,y=ally.y+Math.sin(angle)*103;for(const e of s.enemies){if(!e.dead&&Math.hypot(e.x-x,e.y-y)<e.r+24&&(e.coopBlueLast||-3)<s.elapsed-.42){e.coopBlueLast=s.elapsed;hurtEnemy(e,9+lv('blueLapse')*6,false,'ally')}}}}
  if(ally.fusions.includes('hollowPurple')){ally.purpleCd=(ally.purpleCd||0)-dt;if(ally.purpleCd<=0){ally.purpleCd=8;s.specialFx.push({type:'purple',x:ally.x,y:ally.y,t:0,life:1.7,hit:false,coopOwner:true})}}
  if(ally.fusions.includes('luckyLaser')){ally.laserCd=(ally.laserCd||0)-dt;if(ally.laserCd<=0){const target=s.enemies.filter(e=>!e.dead).sort((a,b)=>dist(a,ally)-dist(b,ally))[0];if(target){ally.laserCd=6.2;s.specialFx.push({type:'luckyLaser',x:ally.x,y:ally.y,angle:Math.atan2(target.y-ally.y,target.x-ally.x),t:0,life:.78,hit:false,coopOwner:true})}}}
  if(ally.fusions.includes('thunderNova')){ally.thunderCd=(ally.thunderCd||0)-dt;if(ally.thunderCd<=0){ally.thunderCd=7;s.specialFx.push({type:'thunderNova',x:ally.x,y:ally.y,t:0,life:.9,hit:false,arcs:[],coopOwner:true})}}
@@ -1018,18 +1118,19 @@ function coopBroadcast(dt){coopPillText();if(coop.mode!=='host'||!coop.conn?.ope
  const small=(a,fields)=>a.map(o=>Object.fromEntries(fields.map(k=>[k,o[k]])));
  const pack={type:'state',pause:paused,game:{world:s.world,wave:s.wave,globalWave:s.globalWave,phase:s.phase,elapsed:s.elapsed,time:s.time,score:s.score,lvl:s.lvl,xp:s.xp,xpGoal:s.xpGoal,coins:s.coins,gems:s.gems,combo:s.combo,kills:s.kills,
   player:{...s.player},ally:{...coop.ally},runUp:s.runUp,fusions:s.fusions,
+  minions:small(s.minions,['type','owner','x','y','hp','maxHP','r','angle','level','inv']),
   enemies:small(s.enemies,['type','x','y','hp','maxHP','r','hit','phase','angle']),
   bullets:small(s.bullets,['x','y','vx','vy','r','crit','fusionGold']),badBullets:small(s.badBullets,['x','y','r']),
   drops:small(s.drops,['x','y','r','type','phase']),rings:small(s.rings.slice(-30),['x','y','r','life','max','color']),
   particles:small(s.particles.slice(-75),['x','y','r','color','life']),floats:small(s.floats.slice(-24),['x','y','text','color','size','life']),
   vfx:small(s.vfx.slice(-30),['type','x','y','rot','life','max','r','w','h','color','spin','scale']),
-  specialFx:small(s.specialFx.slice(-20),['type','x','y','t','life','lv','angle','hit'])}};
+  specialFx:small(s.specialFx.slice(-45),['type','x','y','t','life','lv','angle','hit','owner'])}};
  pack.game.boss=s.boss?{x:s.boss.x,y:s.boss.y,hp:s.boss.hp,maxHP:s.boss.maxHP}:null;
  coopSend(pack);
 }
 function coopApplyState(msg){let g=msg.game;if(!g||typeof g!=='object')return;coop.lastReceive=performance.now();
  // Only drawing / HUD state is synced. No remote client may overwrite local permanent inventory or coupons.
- for(const k of ['world','wave','globalWave','phase','elapsed','time','score','lvl','xp','xpGoal','coins','gems','combo','kills','enemies','bullets','badBullets','drops','rings','particles','floats','vfx','specialFx','boss'])if(g[k]!==undefined)s[k]=g[k];
+ for(const k of ['world','wave','globalWave','phase','elapsed','time','score','lvl','xp','xpGoal','coins','gems','combo','kills','enemies','minions','bullets','badBullets','drops','rings','particles','floats','vfx','specialFx','boss'])if(g[k]!==undefined)s[k]=g[k];
  // On guest the local character is the main hero (including local HP and upgrades).
  if(g.ally){s.player=g.ally;s.runUp=g.ally.runUp||{};s.fusions=g.ally.fusions||[];}
  if(g.player)coop.ally=g.player;
