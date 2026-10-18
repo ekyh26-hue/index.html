@@ -318,7 +318,7 @@ function mobile(){return matchMedia('(pointer:coarse)').matches||innerWidth<670}
 function syncMode(){let inGame=scene==='play';$('#hud').classList.toggle('on',inGame);$('#rail').classList.toggle('on',inGame&&coop.mode!=='guest');$('#front').classList.toggle('off',inGame);$('#mobileControls').classList.toggle('on',inGame&&mobile());$('#dashDesktop').classList.toggle('on',inGame&&!mobile());$('#abilityBadge').style.display=inGame&&!mobile()?'block':'none';$('#bossHud').classList.toggle('on',inGame&&!!s?.boss);if(!inGame)homeUpdate();}
 function toast(icon,title,sub){let node=document.createElement('div');node.className='toast';node.innerHTML=`${art(icon)}<div><strong>${title}</strong><small>${sub||''}</small></div>`;$('#toastDock').append(node);setTimeout(()=>{node.style.transition='opacity .25s,transform .25s';node.style.opacity='0';node.style.transform='translateX(45px)';setTimeout(()=>node.remove(),320)},3000)}
 function banner(big,sub='',ms=1500){const b=$('#banner');b.innerHTML=`${big}<small>${sub}</small>`;b.classList.remove('show');void b.offsetWidth;b.classList.add('show');let token=++activeBanners;setTimeout(()=>{if(activeBanners===token)b.classList.remove('show')},ms)}
-function modal(title,subtitle,html,opt={}){$('#dialog').classList.toggle('skillModal',!!opt.skillModal);if(!$('#dialogLayer').classList.contains('open'))prevPaused=paused;paused=true;mandatory=!!opt.mandatory;dialogClose=opt.onClose||null;$('#dialogLayer').classList.add('open');$('#dialog').innerHTML=`<div class="modalHeader"><div><div class="eyebrow">${opt.tag||'STARBREAK • OPERATIONS'}</div><h2 class="modalTitle">${title}</h2></div>${!mandatory?'<button id="modalX" class="modalClose" aria-label="닫기">✕</button>':''}</div>${subtitle?`<p class="modalSub">${subtitle}</p>`:''}${html}`;if(!mandatory)$('#modalX').onclick=closeModal;}
+function modal(title,subtitle,html,opt={}){$('#dialog').classList.toggle('skillModal',!!opt.skillModal);if(!$('#dialogLayer').classList.contains('open'))prevPaused=paused;paused=opt.noPause?false:true;mandatory=!!opt.mandatory;dialogClose=opt.onClose||null;$('#dialogLayer').classList.add('open');$('#dialog').innerHTML=`<div class="modalHeader"><div><div class="eyebrow">${opt.tag||'STARBREAK • OPERATIONS'}</div><h2 class="modalTitle">${title}</h2></div>${!mandatory?'<button id="modalX" class="modalClose" aria-label="닫기">✕</button>':''}</div>${subtitle?`<p class="modalSub">${subtitle}</p>`:''}${html}`;if(!mandatory)$('#modalX').onclick=closeModal;}
 function closeModal(){if(mandatory)return;$('#dialogLayer').classList.remove('open');paused=prevPaused;let f=dialogClose;dialogClose=null;if(f)f();}
 function forceClose(){mandatory=false;closeModal()}
 $('#dialogLayer').addEventListener('click',e=>{if(e.target===$('#dialogLayer')&&!mandatory)closeModal()});
@@ -339,17 +339,17 @@ function spawnEnemy(){const weights=['chaser','chaser','chaser','runner'];if(s.g
 function startWave(){s.phase='combat';s.time=27+Math.min(15,s.world*2+s.wave*2);s.spawn=0;s.seenChest=false;s.boss=null;s.lastBossXP=0;s.badBullets.length=0;s.enemies.length=0;s.combo=0;
  if(s.wave===5){s.phase='boss';s.time=99;let a=enemySpawn('boss',s.player.x,s.player.y-360);s.boss=a;portalFx(a.x,a.y,'#c76cff',1.4);groundFx(a.x,a.y,'#ff9a4b',1.05);banner('⚠ 보스 접근!',`${LEVELS[(s.world-1)%5]} 수호자`,2200);snd.boss()}else{banner(`WAVE ${s.wave}`,LEVELS[(s.world-1)%5],1350)}
  syncMode();updateHUD()}
-function afterWave(){s.phase='rest';s.enemies=[];s.badBullets=[];s.boss=null;paused=true;
+function afterWave(){s.phase='rest';s.enemies=[];s.badBullets=[];s.boss=null;paused=true;if(coop.mode==='host'&&coop.ally){if(coop.ally.hp<=0)coop.ally.hp=Math.ceil(coop.ally.maxHP*.4);if(s.player.hp<=0)s.player.hp=Math.ceil(s.player.maxHP*.4);}
  const bonus=15+s.wave*8+s.world*5;s.coins+=bonus;s.earned+=bonus;s.score+=s.wave*75;s.combo=0;
  shower(s.player.x,s.player.y,25,'#ffdf81',220);sigilFx(s.player.x,s.player.y,'#ffd85d',1.15);snd.win();toast(s.lastBossXP?'star':'coin',s.lastBossXP?'보스 처치! 경험치 대량 획득!':'웨이브 클리어!',s.lastBossXP?`경험치 +${s.lastBossXP} · 코인 +${bonus}`:`보너스 코인 +${bonus}`);
  if(s.wave===5){s.world++;s.wave=1;s.bosses++;meta.highestWorld=Math.max(meta.highestWorld,s.world);s.score+=1000; s.gems+=7;achieve();banner('🌌 행성 돌파!',`다음 행성: ${LEVELS[(s.world-1)%5]}`,2800);}else s.wave++;
- s.globalWave++;s.levelQueue++;save();setTimeout(()=>{if(scene==='play')pickUpgrades(true)},570);
+ s.globalWave++;s.levelQueue++;if(coop.mode==='host'&&coop.ally)coop.ally.upQueue++;save();setTimeout(()=>{if(scene==='play')pickUpgrades(true)},570);
 }
-function collectDrop(o){if(o.type==='coin'){s.coins+=o.value||1;s.earned+=o.value||1;s.score+=2;snd.coin();if(s.earned%50<3)toast('coin','보물 획득!','코인이 쌓이고 있어요');}
+function collectDrop(o,collector=s.player){if(o.type==='coin'){s.coins+=o.value||1;s.earned+=o.value||1;s.score+=2;snd.coin();if(s.earned%50<3)toast('coin','보물 획득!','코인이 쌓이고 있어요');}
  else if(o.type==='gem'){s.gems+=o.value||1;s.score+=7;snd.pickup();}
- else if(o.type==='xp'){s.xp+=(o.value||3)*(1+U('xp')*.25+skillRank('m5')*.08);if(s.xp>=s.xpGoal){s.xp-=s.xpGoal;s.lvl++;s.xpGoal=Math.round(s.xpGoal*1.31+4);s.levelQueue++;gainSkillPoints(1);snd.level();spiralFx(s.player.x,s.player.y,'#7cff81',1.1);sigilFx(s.player.x,s.player.y,'#ffcf62',1);toast('star',`LEVEL UP! LV.${s.lvl}`,'능력 선택 가능');}}
- else if(o.type==='heal'){s.player.hp=Math.min(s.player.maxHP,s.player.hp+30+skillRank('d5')*12);toast('heart','체력 회복','+30 HP');snd.pickup()}
- else if(o.type==='chest'){s.chests++;sigilFx(o.x,o.y,'#ffd463',1.25);showChest();}
+ else if(o.type==='xp'){s.xp+=(o.value||3)*(1+(collector===coop.ally?(coop.ally?.runUp?.xp||0):U('xp'))*.25+skillRank('m5')*.08);if(s.xp>=s.xpGoal){s.xp-=s.xpGoal;s.lvl++;s.xpGoal=Math.round(s.xpGoal*1.31+4);s.levelQueue++;if(coop.mode==='host'&&coop.ally)coop.ally.upQueue++;gainSkillPoints(1);snd.level();spiralFx(s.player.x,s.player.y,'#7cff81',1.1);sigilFx(s.player.x,s.player.y,'#ffcf62',1);toast('star',`LEVEL UP! LV.${s.lvl}`,'능력 선택 가능');}}
+ else if(o.type==='heal'){collector.hp=Math.min(collector.maxHP,collector.hp+30+skillRank('d5')*12);toast('heart','체력 회복','+30 HP');snd.pickup()}
+ else if(o.type==='chest'){s.chests++;sigilFx(o.x,o.y,'#ffd463',1.25);if(coop.mode==='host'&&coop.ally)coop.ally.upQueue++;showChest();}
 }
 function drop(x,y,type='xp',value=1){s.drops.push({x:x+rand(-13,13),y:y+rand(-13,13),type,value,r:type==='chest'?20:type==='coin'?12:10,born:0,phase:rand(0,7)});}
 function awardBossExperience(x,y){
@@ -361,7 +361,7 @@ function awardBossExperience(x,y){
  let levels=0;
  while(s.xp>=s.xpGoal&&levels<15){
   s.xp-=s.xpGoal;s.lvl++;s.xpGoal=Math.round(s.xpGoal*1.31+4);
-  s.levelQueue++;gainSkillPoints(1);levels++;
+  s.levelQueue++;if(coop.mode==='host'&&coop.ally)coop.ally.upQueue++;gainSkillPoints(1);levels++;
  }
  floatText(x,y-90,`+${reward} EXP`,'#a8faff',29);
  sigilFx(x,y,'#ffe384',1.5);
@@ -379,10 +379,10 @@ function enemyDie(e){if(e.dead)return;e.dead=true;if(e.type==='boss'){if(skillRa
  if(s.kills%10===0)floatText(s.player.x,s.player.y-85,`${s.kills} KILLS!`,'#8ceaff',24);
  achieve();}
 function hurtEnemy(e,amt,isCrit=false){if(e.dead)return;e.hp-=amt;e.hit=.16;floatText(e.x+rand(-10,10),e.y-19,Math.ceil(amt),isCrit?'#ffde87':'#eafaff',isCrit?20:14);if(isCrit){shower(e.x,e.y,4,'#ffd060',80);impactFx(e.x,e.y,'#ffd060',1.12)}if(e.hp<=0)enemyDie(e)}
-function hurtPlayer(amt){let p=s.player;if(p.inv>0||p.dashTime>0||s.phase==='rest')return;
- if(fusionOwned('astralGuardian')&&s.guardianShield>0){s.guardianShield=0;portalFx(p.x,p.y,'#79ffe0',1.0);rings(p.x,p.y,94,'#68ffdd');floatText(p.x,p.y-49,'SHIELD!','#9cffe7',23);return;}if(Math.random()<skillRank('m4')*.03){floatText(p.x,p.y-30,'DODGE!','#86efff',18);return}let reduction=armorStats().defense+skillRank('d1')*.03+(amt>=25?skillRank('d4')*.06:0)+(p.hp<p.maxHP*.3?skillRank('d6')*.12:0);p.hp-=Math.max(1,amt*(1-clamp(reduction,0,.8)));p.inv=.58+skillRank('d3')*.12;shake=Math.min(18,shake+9);snd.hit();shower(p.x,p.y,12,'#ff477a',145);impactFx(p.x,p.y,'#ff6b94',1.18);flameFx(p.x,p.y,'#7c6bff',.9);floatText(p.x,p.y-47,`-${Math.ceil(amt)}`,'#ff7c9a',25);if(p.hp<=0){p.hp=0;gameOver()}}
+function hurtPlayer(amt){let p=s.player;if(p.hp<=0||(coop.mode==='host'&&coop.hostChoosing)||p.inv>0||p.dashTime>0||s.phase==='rest')return;
+ if(fusionOwned('astralGuardian')&&s.guardianShield>0){s.guardianShield=0;portalFx(p.x,p.y,'#79ffe0',1.0);rings(p.x,p.y,94,'#68ffdd');floatText(p.x,p.y-49,'SHIELD!','#9cffe7',23);return;}if(Math.random()<skillRank('m4')*.03){floatText(p.x,p.y-30,'DODGE!','#86efff',18);return}let reduction=armorStats().defense+skillRank('d1')*.03+(amt>=25?skillRank('d4')*.06:0)+(p.hp<p.maxHP*.3?skillRank('d6')*.12:0);p.hp-=Math.max(1,amt*(1-clamp(reduction,0,.8)));p.inv=.58+skillRank('d3')*.12;shake=Math.min(18,shake+9);snd.hit();shower(p.x,p.y,12,'#ff477a',145);impactFx(p.x,p.y,'#ff6b94',1.18);flameFx(p.x,p.y,'#7c6bff',.9);floatText(p.x,p.y-47,`-${Math.ceil(amt)}`,'#ff7c9a',25);if(p.hp<=0){p.hp=0;if(coop.mode!=='host'||!coop.ally||coop.ally.hp<=0)gameOver();else floatText(p.x,p.y-65,'쓰러짐!','#ff9bb2',22)}}
 function spawnBurst(e){let n=10+Math.min(10,s.world*2);for(let j=0;j<n;j++){let a=Math.PI*2*j/n+s.elapsed*.7;s.badBullets.push({x:e.x,y:e.y,vx:Math.cos(a)*175,vy:Math.sin(a)*175,r:9,life:5,damage:12+s.world*1.5})}groundFx(e.x,e.y,'#ff9548',1.05);rings(e.x,e.y,280,'#fd8bb1');snd.boss()}
-function bossAttack(e,dt){e.fire-=dt;e.dashCd-=dt;if(e.fire<=0){spawnBurst(e);portalFx(e.x,e.y,'#c665ff',1.05);e.fire=Math.max(1.4,3.0-s.world*.11)}if(e.dashCd<=0){e.dashCd=5.2;shower(e.x,e.y,10,'#ff93ce',180);portalFx(e.x,e.y,'#ff7be7',1.2);let dx=s.player.x-e.x,dy=s.player.y-e.y,d=len(dx,dy)||1;e.vx=(dx/d)*470;e.vy=(dy/d)*470;e.charge=.68;floatText(e.x,e.y-65,'돌진!','#ffc2ca',21)}if(e.charge>0){e.charge-=dt;e.x+=e.vx*dt;e.y+=e.vy*dt}}
+function bossAttack(e,dt){e.fire-=dt;e.dashCd-=dt;if(e.fire<=0){spawnBurst(e);portalFx(e.x,e.y,'#c665ff',1.05);e.fire=Math.max(1.4,3.0-s.world*.11)}if(e.dashCd<=0){e.dashCd=5.2;shower(e.x,e.y,10,'#ff93ce',180);portalFx(e.x,e.y,'#ff7be7',1.2);let goal=coopNextTarget(e)||s.player;let dx=goal.x-e.x,dy=goal.y-e.y,d=len(dx,dy)||1;e.vx=(dx/d)*470;e.vy=(dy/d)*470;e.charge=.68;floatText(e.x,e.y-65,'돌진!','#ffc2ca',21)}if(e.charge>0){e.charge-=dt;e.x+=e.vx*dt;e.y+=e.vy*dt}}
 function fireBullet(){let p=s.player,targets=s.enemies.filter(e=>!e.dead&&dist(e,p)<520).sort((a,b)=>dist(a,p)-dist(b,p));if(!targets.length)return;
  let e=targets[0],dir=Math.atan2(e.y-p.y,e.x-p.x),count=1+U('multishot');
  for(let j=0;j<count;j++){let spread=(j-(count-1)/2)*.15;let a=dir+spread;const crit=Math.random()<.06+U('crit')*.09+armorStats().crit+skillRank('a2')*.02;let sx=p.x+Math.cos(a)*25,sy=p.y+Math.sin(a)*25;s.bullets.push({x:sx,y:sy,vx:Math.cos(a)*760,vy:Math.sin(a)*760,r:6+(crit?1:0),life:.85,damage:damageVal()*(crit?2.25+skillRank('a3')*.10:1),crit,pierce:U('pierce')+skillRank('a4'),hit:new Set(),trace:[]});muzzleFx(sx,sy,a,crit?'#ffd57b':'#67dbff',crit?1.2:1);if(crit)impactFx(sx,sy,'#ffd57b',.7);}
@@ -399,9 +399,9 @@ function fireBullet(){let p=s.player,targets=s.enemies.filter(e=>!e.dead&&dist(e
  p.rot=dir;snd.shoot();}
 function dash(){if(coopGuestDash())return;if(scene!=='play'||paused||s.player.dash>0)return;let p=s.player;let x=stick.x+Number(!!keys.d)-Number(!!keys.a)+Number(!!keys.ArrowRight)-Number(!!keys.ArrowLeft),y=stick.y+Number(!!keys.s)-Number(!!keys.w)+Number(!!keys.ArrowDown)-Number(!!keys.ArrowUp);let m=len(x,y);if(m<.12){x=Math.cos(p.rot);y=Math.sin(p.rot);m=1}p.dashDx=x/m;p.dashDy=y/m;p.dashTime=.24;p.dash=Math.max(.8,2.65-armorStats().dash);p.fxTick=0;shake=Math.min(11,shake+5);dashBurst(p.x,p.y,Math.atan2(p.dashDy,p.dashDx));rings(p.x,p.y,90,'#60fff2');snd.dash();}
 const partyIcons=['gold','cash','star','crystal','diamond','heart'];
-function showChest(){paused=true;const prizes=[{name:'금화 폭풍',desc:'+90 코인',icon:'gold',f:()=>{s.coins+=90;s.earned+=90}},{name:'별빛 보너스',desc:'경험치 +40',icon:'star',f:()=>{s.xp+=40;while(s.xp>=s.xpGoal){s.xp-=s.xpGoal;s.lvl++;s.xpGoal=Math.round(s.xpGoal*1.31+4);s.levelQueue++;gainSkillPoints(1)}}},{name:'크리스탈 상자',desc:'보석 +10',icon:'crystal',f:()=>s.gems+=10},{name:'완전 회복',desc:'체력 전체 회복',icon:'heart',f:()=>s.player.hp=s.player.maxHP},{name:'영웅의 축복',desc:'공격력 업그레이드 +1',icon:'rainbow',f:()=>applyUpgrade('damage')}];let prize=prizes[rnd(0,prizes.length-1)];
- modal('🎁 수수께끼 보물 상자','두근두근... 상자를 열면 무작위 보상을 얻어요!',`<div style="display:flex;justify-content:center;padding:16px"><img id="mysteryPulse" class="art" src="${ASSETS.mystery}" style="width:125px;max-height:140px;animation:bob 1s infinite"></div><div id="chestReveal" class="hidden" style="text-align:center">${art(prize.icon)}<h2>${prize.name}</h2><p class="muted">${prize.desc}</p></div><button id="openMystery" class="primary wide">✨ 상자 열기</button>`,{mandatory:true,tag:'BONUS / MYSTERY CHEST'});
- $('#chestReveal img').style.width='76px';$('#chestReveal img').style.height='76px';$('#openMystery').onclick=()=>{let btn=$('#openMystery');btn.disabled=true;btn.textContent='✨ 반짝반짝...';sound(500,'sine',.4,.1,850);setTimeout(()=>{if(scene!=='play')return;$('#mysteryPulse').classList.add('hidden');$('#chestReveal').classList.remove('hidden');prize.f();shower(s.player.x,s.player.y,38,'#ffe286',250);snd.level();updateHUD();btn.disabled=false;btn.textContent='계속하기 →';btn.onclick=()=>{forceClose();if(s.phase==='rest')pickUpgrades(true);else if(s.levelQueue>0)pickUpgrades(false);else paused=false}},650)};
+function showChest(){if(coop.mode==='host')coop.hostChoosing=true;else paused=true;const prizes=[{name:'금화 폭풍',desc:'+90 코인',icon:'gold',f:()=>{s.coins+=90;s.earned+=90}},{name:'별빛 보너스',desc:'경험치 +40',icon:'star',f:()=>{s.xp+=40;while(s.xp>=s.xpGoal){s.xp-=s.xpGoal;s.lvl++;s.xpGoal=Math.round(s.xpGoal*1.31+4);s.levelQueue++;if(coop.mode==='host'&&coop.ally)coop.ally.upQueue++;gainSkillPoints(1)}}},{name:'크리스탈 상자',desc:'보석 +10',icon:'crystal',f:()=>s.gems+=10},{name:'완전 회복',desc:'체력 전체 회복',icon:'heart',f:()=>s.player.hp=s.player.maxHP},{name:'영웅의 축복',desc:'공격력 업그레이드 +1',icon:'rainbow',f:()=>applyUpgrade('damage')}];let prize=prizes[rnd(0,prizes.length-1)];
+ modal('🎁 수수께끼 보물 상자','두근두근... 상자를 열면 무작위 보상을 얻어요!',`<div style="display:flex;justify-content:center;padding:16px"><img id="mysteryPulse" class="art" src="${ASSETS.mystery}" style="width:125px;max-height:140px;animation:bob 1s infinite"></div><div id="chestReveal" class="hidden" style="text-align:center">${art(prize.icon)}<h2>${prize.name}</h2><p class="muted">${prize.desc}</p></div><button id="openMystery" class="primary wide">✨ 상자 열기</button>`,{mandatory:true,noPause:coop.mode==='host',tag:'BONUS / MYSTERY CHEST'});
+ $('#chestReveal img').style.width='76px';$('#chestReveal img').style.height='76px';$('#openMystery').onclick=()=>{let btn=$('#openMystery');btn.disabled=true;btn.textContent='✨ 반짝반짝...';sound(500,'sine',.4,.1,850);setTimeout(()=>{if(scene!=='play')return;$('#mysteryPulse').classList.add('hidden');$('#chestReveal').classList.remove('hidden');prize.f();shower(s.player.x,s.player.y,38,'#ffe286',250);snd.level();updateHUD();btn.disabled=false;btn.textContent='계속하기 →';btn.onclick=()=>{forceClose();coop.hostChoosing=false;if(s.phase==='rest')pickUpgrades(true);else if(s.levelQueue>0)pickUpgrades(false);else paused=false}},650)};
 }
 function applyUpgrade(id){
  const fusion=FUSIONS.find(f=>f.id===id);
@@ -422,8 +422,9 @@ function applyUpgrade(id){
 }
 function pickUpgrades(between){
  if(scene!=='play')return;
- if(s.levelQueue<=0){paused=false;return}
- paused=true;
+ if(s.levelQueue<=0){paused=false;coop.hostChoosing=false;return}
+ coop.hostChoosing=coop.mode==='host';
+ if(coop.mode!=='host')paused=true;
  const availableFusions=FUSIONS.filter(fusionReady).map(f=>({...f,rarity:'fusion',max:1,isFusion:true}));
  const pool=upgrades.filter(u=>U(u.id)<u.max);
  const chosen=[];
@@ -441,9 +442,9 @@ function pickUpgrades(between){
    return `<button class="choiceCard ${fusion?'fusionCard':''} ${trans?'transcendCard':''}" data-up="${u.id}"><span class="rarity ${fusion?'fusion':u.rarity}">${rarityLabel} · ${fusion?'융합':`LV.${U(u.id)+1}`}</span>${art(u.icon)}<h3>${fusion?'💠 ':trans?'🌈 ':''}${u.name}</h3><p>${u.desc}</p>${fusion?`<small class="fusionRequirement">${fusionProgress(u)}</small>`:''}</button>`;
  }).join('');
  const progress=FUSIONS.filter(f=>!fusionOwned(f.id)).map(f=>`<div class="fusionHint">${fusionReady(f)?'✨':'🔒'} <strong>${f.name}</strong> <span>${fusionProgress(f)}</span></div>`).join('');
- modal(between?'🏅 웨이브 돌파!':'✨ 레벨 업!',between?'웨이브를 클리어했어요! 획득한 레벨만큼 강화하고 다음으로!':`LV.${s.lvl} 달성! 원하는 능력 1개를 골라요.`,`<div class="cardGrid">${options}</div><details class="fusionGuide"><summary>💠 합성 초월 조합 확인 (${FUSIONS.length}종)</summary><div class="fusionGuideList">${progress||'모든 합성 초월을 획득했어!'}</div></details><p class="tiny" style="text-align:center;margin:12px 0 0">※ 카드를 터치하면 바로 적용됩니다. 조합 스킬을 각각 5레벨까지 올려야 합성이 열려요.</p>`,{mandatory:true,tag:'CHOOSE YOUR POWER'});
+ modal(between?'🏅 웨이브 돌파!':'✨ 레벨 업!',between?'웨이브를 클리어했어요! 획득한 레벨만큼 강화하고 다음으로!':`LV.${s.lvl} 달성! 원하는 능력 1개를 골라요.`,`<div class="cardGrid">${options}</div><details class="fusionGuide"><summary>💠 합성 초월 조합 확인 (${FUSIONS.length}종)</summary><div class="fusionGuideList">${progress||'모든 합성 초월을 획득했어!'}</div></details><p class="tiny" style="text-align:center;margin:12px 0 0">※ 카드를 터치하면 바로 적용됩니다. 조합 스킬을 각각 5레벨까지 올려야 합성이 열려요.</p>`,{mandatory:true,noPause:coop.mode==='host',tag:'CHOOSE YOUR POWER'});
  $$('[data-up]').forEach(b=>b.onclick=()=>{
-   applyUpgrade(b.dataset.up);s.levelQueue=Math.max(0,s.levelQueue-1);forceClose();
+   applyUpgrade(b.dataset.up);s.levelQueue=Math.max(0,s.levelQueue-1);forceClose();coop.hostChoosing=false;
    if(between){if(s.levelQueue>0)pickUpgrades(true);else{startWave();paused=false;}}
    else if(s.levelQueue>0)pickUpgrades(false);else paused=false;
  });
@@ -641,7 +642,7 @@ function groundFx(x,y,color='#ff9b48',scale=1){fxPush({type:'ground',x,y,life:.3
 function sigilFx(x,y,color='#ffd85d',scale=1){fxPush({type:'sigil',x,y,life:.5,max:.5,r:44*scale,color});}
 function muzzleFx(x,y,rot,color='#63d9ff',scale=1){fxPush({type:'shot',x,y,rot,life:.16,max:.16,r:30*scale,color});}
 
-function playerShotImpact(b,e){hurtEnemy(e,b.damage*(e.type==='boss'?1+skillRank('a5')*.08:1),b.crit);if(skillRank('g1')>0&&Math.random()<skillRank('g1')*.08){e.burnTime=2.5;e.burnTick=0}if(skillRank('g2')>0&&Math.random()<skillRank('g2')*.08){e.frostTime=1.7+skillRank('g5')*.7}impactFx(b.x,b.y,b.crit?'#ffd572':'#7edfff',b.crit?1.35:1);slashFx(b.x,b.y,Math.atan2(b.vy,b.vx),b.crit?'#ffd572':'#7edfff',b.crit?1.18:1);if((U('lightning')>0||skillRank('g4')>0)&&Math.random()<.14+U('lightning')*.08+skillRank('g4')*.10){let second=s.enemies.filter(q=>q!==e&&!q.dead&&dist(q,e)<135).slice(0,2+Math.floor(U('lightning')/2));for(let t of second){s.rings.push({x:t.x,y:t.y,r:0,max:35,life:.2,color:'#8aeaff'});portalFx(t.x,t.y,'#7ef6ff',.72);hurtEnemy(t,b.damage*(.28+U('lightning')*.09+skillRank('g0')*.08))}}shower(b.x,b.y,3,'#a8eeff',75);}
+function playerShotImpact(b,e){hurtEnemy(e,b.damage*(e.type==='boss'?1+skillRank('a5')*.08:1),b.crit);if(skillRank('g1')>0&&Math.random()<skillRank('g1')*.08){e.burnTime=2.5;e.burnTick=0}if(skillRank('g2')>0&&Math.random()<skillRank('g2')*.08){e.frostTime=1.7+skillRank('g5')*.7}impactFx(b.x,b.y,b.crit?'#ffd572':'#7edfff',b.crit?1.35:1);slashFx(b.x,b.y,Math.atan2(b.vy,b.vx),b.crit?'#ffd572':'#7edfff',b.crit?1.18:1);let chainLvl=b.friend?(coop.ally?.runUp?.lightning||0):U('lightning');if((chainLvl>0||skillRank('g4')>0)&&Math.random()<.14+chainLvl*.08+skillRank('g4')*.10){let second=s.enemies.filter(q=>q!==e&&!q.dead&&dist(q,e)<135).slice(0,2+Math.floor(chainLvl/2));for(let t of second){s.rings.push({x:t.x,y:t.y,r:0,max:35,life:.2,color:'#8aeaff'});portalFx(t.x,t.y,'#7ef6ff',.72);hurtEnemy(t,b.damage*(.28+chainLvl*.09+skillRank('g0')*.08))}}shower(b.x,b.y,3,'#a8eeff',75);}
 function update(dt){elapsed+=dt;anim+=dt;if(coop.mode==='guest'&&scene==='play'){coopGuestInput(dt);return;}if(!s||scene!=='play'||paused)return;updateSpecials(dt);
  s.elapsed+=dt;s.time-=dt;let p=s.player;p.regenTick=(p.regenTick||0)+dt;if((skillRank('d2')||skillRank('d8'))&&p.hp<p.maxHP&&p.regenTick>=.5){p.hp=Math.min(p.maxHP,p.hp+(.6*skillRank('d2')+skillRank('d8'))*p.regenTick);p.regenTick=0}
  p.inv=Math.max(0,p.inv-dt);p.dash=Math.max(0,p.dash-dt);p.dashTime=Math.max(0,p.dashTime-dt);
@@ -649,33 +650,33 @@ function update(dt){elapsed+=dt;anim+=dt;if(coop.mode==='guest'&&scene==='play')
  let mx=(Number(!!keys.d)+Number(!!keys.ArrowRight)-Number(!!keys.a)-Number(!!keys.ArrowLeft))+stick.x;
  let my=(Number(!!keys.s)+Number(!!keys.ArrowDown)-Number(!!keys.w)-Number(!!keys.ArrowUp))+stick.y;
  p.fxTick=(p.fxTick||0)-dt;
- let d=len(mx,my)||1,moving=Math.min(1,len(mx,my));p.vx=mx/d*playerSpeed()*moving;p.vy=my/d*playerSpeed()*moving;
+ if(coop.hostChoosing||p.hp<=0){mx=0;my=0;}let d=len(mx,my)||1,moving=Math.min(1,len(mx,my));p.vx=mx/d*playerSpeed()*moving;p.vy=my/d*playerSpeed()*moving;
  if(p.dashTime>0){p.x+=p.dashDx*1040*dt;p.y+=p.dashDy*1040*dt;if(Math.random()<.8)shower(p.x,p.y,2,'#7fffff',50);if(p.fxTick<=0){p.fxTick=.03;dashBurst(p.x,p.y,Math.atan2(p.dashDy,p.dashDx))}}else {p.x+=p.vx*dt;p.y+=p.vy*dt}
  p.x=clamp(p.x,-world.w/2+70,world.w/2-70);p.y=clamp(p.y,-world.h/2+70,world.h/2-70);
  coopUpdateHostPartner(dt);camera.x+=(p.x-camera.x)*Math.min(1,dt*3.5);camera.y+=(p.y-camera.y)*Math.min(1,dt*3.5);
- s.shot-=dt;if(s.shot<=0&&s.enemies.length){fireBullet();s.shot=fireRate()}
+ s.shot-=dt;if(s.shot<=0&&s.enemies.length&&p.hp>0&&!coop.hostChoosing){fireBullet();s.shot=fireRate()}
  if(s.phase==='combat'){
    s.spawn-=dt;if(s.spawn<=0&&s.enemies.length<95){spawnEnemy();if(s.globalWave>=3&&Math.random()<.15)spawnEnemy();s.spawn=Math.max(.26,1.11-s.globalWave*.042)*rand(.7,1.24)}
    if(!s.seenChest&&s.time<12){s.seenChest=true;drop(p.x+rand(-145,145),p.y+rand(-145,145),'chest')}
-   if(s.time<=0){afterWave();return}
+   if(s.time<=0){if(coop.mode==='host'&&coop.hostChoosing){s.time=0;}else{afterWave();return}}
  }
  if(s.phase==='boss'){s.time=Math.max(0,s.time);if(s.enemies.filter(e=>!e.dead&&e.type!=='boss').length<8&&Math.random()<dt*.6){spawnEnemy()}}
- for(const e of s.enemies){if(e.dead)continue;e.hit=Math.max(0,e.hit-dt);e.angle+=dt;if(e.frostTime>0)e.frostTime=Math.max(0,e.frostTime-dt);if(e.burnTime>0){e.burnTime-=dt;e.burnTick=(e.burnTick||0)+dt;if(e.burnTick>=.48){e.burnTick=0;hurtEnemy(e,(5+skillRank('g3')*4)*(1+skillRank('g0')*.08));if(e.dead)continue}}let target=coop.ally&&coop.mode==='host'&&dist(coop.ally,e)<dist(p,e)?coop.ally:p;let dx=target.x-e.x,dy=target.y-e.y,dd=len(dx,dy)||1;
+ for(const e of s.enemies){if(e.dead)continue;e.hit=Math.max(0,e.hit-dt);e.angle+=dt;if(e.frostTime>0)e.frostTime=Math.max(0,e.frostTime-dt);if(e.burnTime>0){e.burnTime-=dt;e.burnTick=(e.burnTick||0)+dt;if(e.burnTick>=.48){e.burnTick=0;hurtEnemy(e,(5+skillRank('g3')*4)*(1+skillRank('g0')*.08));if(e.dead)continue}}let target=coopNextTarget(e);if(!target)continue;let dx=target.x-e.x,dy=target.y-e.y,dd=len(dx,dy)||1;
   if(e.type==='boss'){bossAttack(e,dt);if(e.charge<=0){e.x+=dx/dd*e.speed*(e.frostTime>0?.5:1)*dt;e.y+=dy/dd*e.speed*(e.frostTime>0?.5:1)*dt}}
   else if(e.type==='shooter'){
    if(dd>220){e.x+=dx/dd*e.speed*(e.frostTime>0?.5:1)*dt;e.y+=dy/dd*e.speed*(e.frostTime>0?.5:1)*dt}else if(dd<155){e.x-=dx/dd*e.speed*.72*dt;e.y-=dy/dd*e.speed*.72*dt}
    e.x+=(-dy/dd)*Math.sin(s.elapsed*2+e.phase)*28*dt;e.y+=(dx/dd)*Math.sin(s.elapsed*2+e.phase)*28*dt;
    e.fire-=dt;if(e.fire<=0&&dd<650){s.badBullets.push({x:e.x,y:e.y,vx:dx/dd*230,vy:dy/dd*230,r:7,life:3.4,damage:12+s.world*1.6});e.fire=rand(1.7,2.5)}
   }else{e.x+=dx/dd*e.speed*(e.frostTime>0?.5:1)*dt;e.y+=dy/dd*e.speed*(e.frostTime>0?.5:1)*dt}
-  if(dd<e.r+p.r*.8){if(p.dashTime>0&&skillRank('m6')>0&&(!e.lastDashHit||s.elapsed-e.lastDashHit>.2)){e.lastDashHit=s.elapsed;hurtEnemy(e,16*skillRank('m6'));impactFx(e.x,e.y,'#8ceeff',.7)}else hurtPlayer(e.type==='boss'?28:e.type==='tank'?18:12)}if(coop.ally&&coop.mode==='host'&&dist(coop.ally,e)<e.r+coop.ally.r*.8){coopHurtAlly(e.type==='boss'?28:e.type==='tank'?18:12)}
+  if(p.hp>0&&dist(p,e)<e.r+p.r*.8){if(p.dashTime>0&&skillRank('m6')>0&&(!e.lastDashHit||s.elapsed-e.lastDashHit>.2)){e.lastDashHit=s.elapsed;hurtEnemy(e,16*skillRank('m6'));impactFx(e.x,e.y,'#8ceeff',.7)}else hurtPlayer(e.type==='boss'?28:e.type==='tank'?18:12)}if(coop.ally&&coop.mode==='host'&&coop.ally.hp>0&&dist(coop.ally,e)<e.r+coop.ally.r*.8){coopHurtAlly(e.type==='boss'?28:e.type==='tank'?18:12)}
  }
  for(let i=s.bullets.length-1;i>=0;i--){const b=s.bullets[i];b.life-=dt;b.x+=b.vx*dt;b.y+=b.vy*dt;let remove=b.life<=0;if(!remove){for(const e of s.enemies){if(e.dead||b.hit.has(e))continue;if((b.x-e.x)**2+(b.y-e.y)**2<(b.r+e.r)**2){b.hit.add(e);playerShotImpact(b,e);if(b.pierce<=0){remove=true;break}else b.pierce--}}}if(remove)s.bullets.splice(i,1)}
  for(let i=s.badBullets.length-1;i>=0;i--){const b=s.badBullets[i];b.life-=dt;b.x+=b.vx*dt;b.y+=b.vy*dt;if(dist(b,p)<b.r+p.r*.7){hurtPlayer(b.damage);b.life=-1;shower(b.x,b.y,5,'#ff8bbc',90)}else if(coop.ally&&coop.mode==='host'&&dist(b,coop.ally)<b.r+coop.ally.r*.7){coopHurtAlly(b.damage);b.life=-1;shower(b.x,b.y,5,'#ff8bbc',90)}if(b.life<=0)s.badBullets.splice(i,1)}
  if(U('orb')+skillRank('g6')>0){for(let j=0;j<U('orb')+skillRank('g6');j++){let a=s.elapsed*2.45+j*Math.PI*2/(U('orb')+skillRank('g6')),x=p.x+Math.cos(a)*86,y=p.y+Math.sin(a)*86;for(const e of s.enemies){if(e.dead)continue;if(len(x-e.x,y-e.y)<e.r+16&&s.elapsed-e.lastOrb>.34){e.lastOrb=s.elapsed;hurtEnemy(e,(13+U('orb')*5)*(1+skillRank('g0')*.08))}}}}
  if(skillRank('g7')>0&&((s.elapsed%(11-skillRank('g7')*1.1))<dt)){portalFx(p.x,p.y,'#be68ff',1);for(const e of s.enemies){if(!e.dead&&dist(e,p)<155)hurtEnemy(e,(18+skillRank('g7')*13)*(1+skillRank('g0')*.08))}}if(skillRank('g8')>0&&((s.elapsed%13)<dt)){portalFx(p.x,p.y,'#ed8aff',1.8);groundFx(p.x,p.y,'#ffba63',1.4);for(const e of s.enemies){if(!e.dead&&dist(e,p)<270)hurtEnemy(e,110*(1+skillRank('g0')*.08))}}if(U('blast')>0){let interval=Math.max(3,7-U('blast')*.6);if((s.elapsed%interval)<dt){portalFx(p.x,p.y,'#d76cff',1.65);flameFx(p.x,p.y,'#6180ff',1.05);rings(p.x,p.y,225,'#dca2ff');shower(p.x,p.y,20,'#d99aff',200);for(let e of s.enemies){if(!e.dead&&dist(e,p)<210)hurtEnemy(e,25+U('blast')*19)}}}
- for(let i=s.drops.length-1;i>=0;i--){let o=s.drops[i];o.born+=dt;let collector=coop.ally&&coop.mode==='host'&&dist(coop.ally,o)<dist(p,o)?coop.ally:p;let dx=collector.x-o.x,dy=collector.y-o.y,dd=len(dx,dy)||1;let range=98+U('magnet')*45+skillRank('m2')*25;
+ for(let i=s.drops.length-1;i>=0;i--){let o=s.drops[i];o.born+=dt;let collector=coop.ally&&coop.mode==='host'&&dist(coop.ally,o)<dist(p,o)?coop.ally:p;let dx=collector.x-o.x,dy=collector.y-o.y,dd=len(dx,dy)||1;let range=98+(collector===coop.ally?(coop.ally?.runUp?.magnet||0):U('magnet'))*45+skillRank('m2')*25;
    if(dd<range){let v=clamp((range-dd)*9,110,680);o.x+=dx/dd*v*dt;o.y+=dy/dd*v*dt}
-   if(dd<collector.r+o.r+5){s.drops.splice(i,1);collectDrop(o);if(paused)return}
+   if(dd<collector.r+o.r+5){s.drops.splice(i,1);collectDrop(o,collector);if(paused)return}
    else if(o.born>30)s.drops.splice(i,1);
  }
  s.enemies=s.enemies.filter(e=>!e.dead);
@@ -685,10 +686,10 @@ function update(dt){elapsed+=dt;anim+=dt;if(coop.mode==='guest'&&scene==='play')
  for(let i=s.rings.length-1;i>=0;i--){let a=s.rings[i];a.life-=dt;a.r+=(a.max-a.r)*Math.min(1,dt*7);if(a.life<0)s.rings.splice(i,1)}
  shake*=Math.max(0,1-8*dt);
  hudTick-=dt;if(hudTick<=0){updateHUD();hudTick=.12}
- if(s.levelQueue>0&&!paused&&s.phase!=='rest'&&p.dashTime<=0){pickUpgrades(false)}
+ if(s.levelQueue>0&&!paused&&!coop.hostChoosing&&!$('#dialogLayer').classList.contains('open')&&s.phase!=='rest'&&p.dashTime<=0){pickUpgrades(false)}
 }
-function updateHUD(){if(!s)return;$('#hpFill').style.width=(s.player.hp/s.player.maxHP*100).toFixed(2)+'%';$('#hpLabel').textContent=`${Math.ceil(s.player.hp)} / ${s.player.maxHP}`;$('#expFill').style.width=clamp(s.xp/s.xpGoal*100,0,100)+'%';$('#levelNum').textContent=s.lvl;$('#comboNum').textContent=s.combo;$('#coinNum').textContent=num(s.coins);$('#gemNum').textContent=num(s.gems);$('#waveTitle').textContent=s.phase==='boss'?`⚠ BOSS · 행성 ${s.world}`:`행성 ${s.world} · WAVE ${s.wave}`;$('#waveTimer').textContent=s.phase==='boss'?'BOSS!':`0:${Math.max(0,Math.ceil(s.time)).toString().padStart(2,'0')}`;$('#waveTimer').classList.toggle('urgent',s.phase==='combat'&&s.time<7);$('#waveFill').style.width=s.phase==='boss'?'100%':`${100*(1-s.time/(27+Math.min(15,s.world*2+s.wave*2)))}%`;let boss=s.boss;$('#bossHud').classList.toggle('on',!!boss);if(boss)$('#bossFill').style.width=`${clamp(boss.hp/boss.maxHP*100,0,100)}%`;
- let dashOwner=coop.mode==='guest'&&coop.ally?coop.ally:s.player;$('#dashButton').classList.toggle('cool',dashOwner.dash>.05);$('#dashDesktop').style.opacity=dashOwner.dash>.05?.55:1;$('#abilityBadge').textContent=dashOwner.dash>.1?`⚡ 대시 ${dashOwner.dash.toFixed(1)}초`:'⚡ 대시 준비 완료';}
+function updateHUD(){if(!s)return;$('#hpFill').style.width=(s.player.hp/s.player.maxHP*100).toFixed(2)+'%';$('#hpLabel').textContent=`${coop.mode==='solo'?'':'나 '} ${Math.ceil(s.player.hp)} / ${s.player.maxHP}`;$('#expFill').style.width=clamp(s.xp/s.xpGoal*100,0,100)+'%';$('#levelNum').textContent=s.lvl;$('#comboNum').textContent=s.combo;$('#coinNum').textContent=num(s.coins);$('#gemNum').textContent=num(s.gems);$('#waveTitle').textContent=s.phase==='boss'?`⚠ BOSS · 행성 ${s.world}`:`행성 ${s.world} · WAVE ${s.wave}`;$('#waveTimer').textContent=s.phase==='boss'?'BOSS!':`0:${Math.max(0,Math.ceil(s.time)).toString().padStart(2,'0')}`;$('#waveTimer').classList.toggle('urgent',s.phase==='combat'&&s.time<7);$('#waveFill').style.width=s.phase==='boss'?'100%':`${100*(1-s.time/(27+Math.min(15,s.world*2+s.wave*2)))}%`;let boss=s.boss;$('#bossHud').classList.toggle('on',!!boss);if(boss)$('#bossFill').style.width=`${clamp(boss.hp/boss.maxHP*100,0,100)}%`;
+ let dashOwner=s.player;$('#dashButton').classList.toggle('cool',dashOwner.dash>.05);$('#dashDesktop').style.opacity=dashOwner.dash>.05?.55:1;$('#abilityBadge').textContent=dashOwner.dash>.1?`⚡ 대시 ${dashOwner.dash.toFixed(1)}초`:'⚡ 대시 준비 완료';}
 function polygon(cx,cy,r,n,rot=0){ctx.beginPath();for(let j=0;j<n;j++){let a=rot+j*2*Math.PI/n;let x=cx+Math.cos(a)*r,y=cy+Math.sin(a)*r;if(j===0)ctx.moveTo(x,y);else ctx.lineTo(x,y)}ctx.closePath()}
 function imgDraw(k,x,y,w,h=w,rotation=0,alpha=1){let im=imgs[k];if(!im?.complete||im.naturalWidth<1)return;ctx.save();ctx.globalAlpha=alpha;ctx.translate(x,y);ctx.rotate(rotation);ctx.drawImage(im,-w/2,-h/2,w,h);ctx.restore()}
 function circle(x,y,r,c){ctx.fillStyle=c;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill()}
@@ -709,7 +710,7 @@ function drawEnemy(e){ctx.save();ctx.translate(e.x,e.y);let pulse=1+Math.sin(s.e
  ctx.restore();if(e.type==='tank'||e.type==='boss'){let w=e.type==='boss'?122:38;ctx.fillStyle='#180b38c9';ctx.fillRect(e.x-w/2,e.y-e.r-19,w,6);ctx.fillStyle='#ff6a9a';ctx.fillRect(e.x-w/2,e.y-e.r-19,w*clamp(e.hp/e.maxHP,0,1),6)}}
 function drawBullets(){ctx.save();ctx.globalCompositeOperation='lighter';for(const b of s.bullets){let a=Math.atan2(b.vy,b.vx);ctx.save();ctx.translate(b.x,b.y);ctx.rotate(a);ctx.globalAlpha=.95;let g=ctx.createLinearGradient(-36,0,14,0);g.addColorStop(0,b.crit?'rgba(255,214,120,0)':'rgba(91,212,255,0)');g.addColorStop(.5,b.crit?'rgba(255,214,120,.75)':'rgba(91,212,255,.58)');g.addColorStop(1,b.crit?'rgba(255,250,220,1)':'rgba(220,255,255,1)');ctx.strokeStyle=g;ctx.lineWidth=b.crit?11:7;ctx.beginPath();ctx.moveTo(-34,0);ctx.lineTo(8,0);ctx.stroke();ctx.restore();circle(b.x,b.y,b.r+3,b.fusionGold?'#ffe277':b.crit?'#ffe39b':'#c4fbff')}for(const b of s.badBullets){circle(b.x,b.y,b.r+7,'#ff70b33a');circle(b.x,b.y,b.r,'#ff7aae');circle(b.x-2,b.y-2,2,'#fff')}ctx.restore()}
 function drawPlayer(){let p=s.player;ctx.save();if(p.inv>0&&Math.sin(s.elapsed*28)>0.12)ctx.globalAlpha=.54;circle(p.x,p.y,34,'#6bffff13');ctx.strokeStyle='#b4f3ff7f';ctx.lineWidth=2;ctx.beginPath();ctx.arc(p.x,p.y,32,0,Math.PI*2);ctx.stroke();ctx.strokeStyle='#d2fffac7';ctx.beginPath();ctx.arc(p.x,p.y,37,s.elapsed*2,s.elapsed*2+Math.PI*.55);ctx.stroke();
- const skin=(coop.mode==='guest'&&coop.hostSkin)||meta.skin;ctx.save();ctx.translate(p.x,p.y);ctx.rotate(Math.sin(s.elapsed*1.4)*.1);imgDraw(skin,0,0,55,55);ctx.restore();
+ const skin=meta.skin;ctx.save();ctx.translate(p.x,p.y);ctx.rotate(Math.sin(s.elapsed*1.4)*.1);imgDraw(skin,0,0,55,55);ctx.restore();
  if(U('orb')+skillRank('g6')>0){for(let j=0;j<U('orb')+skillRank('g6');j++){let a=s.elapsed*2.45+j*Math.PI*2/(U('orb')+skillRank('g6'));let x=p.x+Math.cos(a)*86,y=p.y+Math.sin(a)*86;imgDraw('crystal',x,y,34,34,a)}}
  if(p.dashTime>0){ctx.strokeStyle='#8fffff';ctx.lineWidth=3;ctx.beginPath();ctx.arc(p.x,p.y,44,0,Math.PI*2);ctx.stroke();ctx.globalCompositeOperation='lighter';ctx.strokeStyle='#ffffffc9';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(p.x-p.dashDx*65,p.y-p.dashDy*65);ctx.lineTo(p.x+p.dashDx*18,p.y+p.dashDy*18);ctx.stroke()}ctx.restore()}
 const dropArt={coin:'coin',xp:'star',chest:'mystery',gem:'diamond',heal:'heart'};
@@ -804,7 +805,7 @@ function updateSpecials(dt){
         const dx=e.x-fx.x,dy=e.y-fx.y,along=dx*dirX+dy*dirY,off=Math.abs(dx*dirY-dy*dirX);
         if(along>=-e.r&&along<=length+e.r&&off<=width+e.r){
           // Crit + piercing properties inherited: every target on the entire beam may be hit.
-          hurtEnemy(e,damageVal()*(8.5+Math.min(6,U('crit'))*.6),true);
+          hurtEnemy(e,(fx.coopOwner?(17+meta.permanent.attack*3)*(1+(coop.ally?.runUp?.damage||0)*.22):damageVal())*(8.5+Math.min(6,fx.coopOwner?(coop.ally?.runUp?.crit||0):U('crit'))*.6),true);
           impactFx(e.x,e.y,'#7aff9c',1.4);
         }
       }
@@ -877,7 +878,7 @@ function render(){ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle='#0b1128';ctx.
 // ── ONLINE DUO ───────────────────────────────────────────────────────────
 // PeerJS Cloud is signaling only; gameplay packets use a direct WebRTC DataChannel.
 // Host is authoritative: guests send inputs; host simulates enemies, hits, drops and rewards.
-const coop={mode:'solo',code:'',peer:null,conn:null,ally:null,hostSkin:'star',friendSkin:'star',remoteInput:{x:0,y:0,dash:false},guestDash:false,inGame:false,elapsed:0,sendTick:0,inputTick:0,loading:false,lastReceive:0,lobbyStage:'choose'};
+const coop={mode:'solo',code:'',peer:null,conn:null,ally:null,hostSkin:'star',friendSkin:'star',remoteInput:{x:0,y:0,dash:false},guestDash:false,hostChoosing:false,guestChoosing:false,guestChoiceWaiting:false,guestQueueBefore:0,inGame:false,elapsed:0,sendTick:0,inputTick:0,loading:false,lastReceive:0,lobbyStage:'choose'};
 const coopEl=id=>document.getElementById(id);
 function coopSend(data){if(coop.conn?.open){try{coop.conn.send(data);return true}catch(e){console.warn('Duo send error',e)}}return false;}
 function coopSetMsg(message){coopEl('coopMsg').textContent=message||''}
@@ -885,7 +886,7 @@ function coopSetPanel(html){coopEl('coopSteps').innerHTML=html}
 function coopCodeClean(code){return String(code||'').toUpperCase().replace(/[^A-HJ-NP-Z2-9]/g,'').slice(0,6)}
 function coopNewCode(){const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let a=new Uint32Array(6);crypto.getRandomValues(a);return Array.from(a,n=>chars[n%chars.length]).join('')}
 function coopOverlay(show){coopEl('coopLayer').classList.toggle('show',show)}
-function coopPillText(){const el=coopEl('coopPill');el.classList.toggle('on',coop.mode!=='solo'&&scene==='play');if(coop.mode!=='solo')el.textContent=`👥 ${coop.mode==='host'?'방장':'친구'} · ${coop.code}`;}
+function coopPillText(){const el=coopEl('coopPill');el.classList.toggle('on',coop.mode!=='solo'&&scene==='play');if(coop.mode!=='solo'){const other=coop.ally;el.textContent=`👥 ${coop.mode==='host'?'방장':'친구'} · ${coop.code}`+(other?` · ${coop.mode==='host'?'친구':'방장'} HP ${Math.ceil(other.hp)}/${other.maxHP}`:'');}}
 function coopShowChoose(){coop.lobbyStage='choose';coopSetPanel(`<div class="coopActions"><button id="coopCreate" class="primary">🏠 방 만들기</button><button id="coopShowJoin" class="secondary">🔑 코드로 입장</button></div>`);coopSetMsg('친구와 함께하는 2인 협동 모드');coopEl('coopCreate').onclick=coopCreate;coopEl('coopShowJoin').onclick=coopShowJoin;}
 function coopOpen(){if(scene==='play'){toast('heart','게임 중에는 방을 만들 수 없어요','로비에서 다시 시도해 주세요.');return}coopOverlay(true);if(coop.mode==='solo')coopShowChoose();else coopShowLobby()}
 function coopShowJoin(){coop.lobbyStage='join';const urlRoom=new URLSearchParams(location.search).get('room')||'';coopSetPanel(`<p>방장이 보내준 <b>6자리 코드</b>를 입력해 줘.</p><input id="coopCodeInput" class="coopCode" inputmode="text" maxlength="6" autocomplete="off" autocapitalize="characters" aria-label="방 코드" placeholder="ABC234" value="${coopCodeClean(urlRoom)}"><div class="coopActions"><button id="coopJoinGo" class="primary">입장하기</button><button id="coopJoinBack" class="secondary">뒤로</button></div>`);coopSetMsg('방장이 먼저 방을 만들어야 해요.');coopEl('coopCodeInput').oninput=e=>{e.target.value=coopCodeClean(e.target.value)};coopEl('coopCodeInput').onkeydown=e=>{if(e.key==='Enter')coopJoin()};coopEl('coopJoinGo').onclick=coopJoin;coopEl('coopJoinBack').onclick=coopShowChoose;}
@@ -904,7 +905,7 @@ function coopShowLobby(){coop.lobbyStage='lobby';if(coop.mode==='host'){
 function coopCopy(value){if(navigator.clipboard?.writeText){navigator.clipboard.writeText(value).then(()=>coopSetMsg('📋 복사했어! 친구에게 보내 줘.')).catch(()=>coopCopyFallback(value))}else coopCopyFallback(value)}
 function coopCopyFallback(value){let inp=document.createElement('textarea');inp.value=value;document.body.appendChild(inp);inp.select();document.execCommand('copy');inp.remove();coopSetMsg('📋 복사했어! 친구에게 보내 줘.')}
 async function coopLoadPeer(){if(typeof Peer!=='undefined')return Peer;if(coop.loading)throw Error('잠시 후 다시 시도해 줘.');coop.loading=true;coopSetMsg('🌐 연결 기능 불러오는 중…');try{await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js';script.onload=resolve;script.onerror=()=>reject(Error('통신 라이브러리를 불러오지 못했어. 인터넷 연결을 확인해 줘.'));document.head.append(script);setTimeout(()=>{if(typeof Peer==='undefined')reject(Error('통신 라이브러리 연결이 지연되고 있어.'))},14000)});return Peer}finally{coop.loading=false}}
-function coopDestroy(){let conn=coop.conn,peer=coop.peer;coop.conn=null;coop.peer=null;try{conn?.close()}catch(e){}try{peer?.destroy()}catch(e){}coop.remoteInput={x:0,y:0,dash:false};coop.ally=null;coop.inGame=false;coop.sendTick=coop.inputTick=0;}
+function coopDestroy(){let conn=coop.conn,peer=coop.peer;coop.conn=null;coop.peer=null;try{conn?.close()}catch(e){}try{peer?.destroy()}catch(e){}coop.remoteInput={x:0,y:0,dash:false};coop.ally=null;coop.hostChoosing=false;coop.guestChoosing=false;coop.guestChoiceWaiting=false;coop.inGame=false;coop.sendTick=coop.inputTick=0;}
 function coopLeave(){let previous=coop.mode;if(previous!=='solo')coopSend({type:'leave'});coopDestroy();coop.mode='solo';coop.code='';coopOverlay(false);coopPillText();coopEl('coopWait').classList.remove('on');if(previous!=='solo'&&scene==='play'){forceClose();paused=true;scene='home';s=null;syncMode();}else if(previous!=='solo')syncMode()}
 function coopDrop(msg='친구와 연결이 끊겼어.'){let prev=coop.mode;if(prev==='solo')return;coopDestroy();coop.mode='solo';coop.code='';coopPillText();coopEl('coopWait').classList.remove('on');if(prev==='guest'&&scene==='play'){forceClose();paused=true;scene='home';s=null;syncMode();}if(coopEl('coopLayer').classList.contains('show'))coopShowChoose();toast('heart','협동 모드 연결 종료',msg);}
 async function coopCreate(){if(coop.mode!=='solo')coopLeave();coopSetMsg('⏳ 방을 만드는 중…');try{const C=await coopLoadPeer();let code=coopNewCode();coop.mode='host';coop.code=code;coop.lobbyStage='loading';const peer=new C('jigu-room-'+code,{debug:0});coop.peer=peer;
@@ -926,40 +927,97 @@ function coopReceive(msg){if(msg.type==='full'){coopDrop('이미 2명이 입장�
  if(coop.mode==='host'){
   if(msg.type==='hello'){coop.friendSkin=typeof msg.skin==='string'&&imgs[msg.skin]?msg.skin:'star';coopShowLobby()}
   if(msg.type==='input'){const x=Number(msg.x)||0,y=Number(msg.y)||0;const d=Math.max(1,Math.hypot(x,y));coop.remoteInput.x=Math.max(-1,Math.min(1,x/d));coop.remoteInput.y=Math.max(-1,Math.min(1,y/d));if(msg.dash)coop.remoteInput.dash=true}
+  if(msg.type==='upgrade'&&typeof msg.id==='string'&&coop.inGame)coopAllyApplyUpgrade(msg.id);
  }else if(coop.mode==='guest'){
   if(msg.type==='welcome'){coop.hostSkin=typeof msg.skin==='string'&&imgs[msg.skin]?msg.skin:'star';coopShowLobby()}
   if(msg.type==='start'){coop.hostSkin=typeof msg.skin==='string'&&imgs[msg.skin]?msg.skin:'star';coop.inGame=true;coopOverlay(false);init(true);coopPillText()}
   if(msg.type==='state'&&coop.inGame&&s&&scene==='play'){coopApplyState(msg)}
   if(msg.type==='result'&&coop.inGame){coopGuestResult(msg)}
  }}
-function coopMakeAlly(){return{x:65,y:45,vx:0,vy:0,r:24,hp:s?.player?.hp||100,maxHP:s?.player?.maxHP||100,inv:0,dash:0,dashTime:0,dashDx:1,dashDy:0,rot:0,shot:0,fxTick:0}}
-function coopHurtAlly(amt){const ally=coop.ally;if(!ally||ally.inv>0||ally.dashTime>0||scene!=='play')return;ally.inv=.5;ally.hp=Math.max(0,ally.hp-amt);s.player.hp=Math.max(0,s.player.hp-amt);impactFx(ally.x,ally.y,'#ff679b',.8);if(s.player.hp<=0)gameOver()}
+function coopMakeAlly(){const mhp=110;return{x:65,y:45,vx:0,vy:0,r:24,hp:mhp,maxHP:mhp,inv:0,dash:0,dashTime:0,dashDx:1,dashDy:0,rot:0,shot:0,fxTick:0,runUp:{},fusions:[],upQueue:0,choosing:false,powerTick:0,regenTick:0}}
+function coopHurtAlly(amt){const ally=coop.ally;if(!ally||ally.hp<=0||ally.upQueue>0||ally.choosing||ally.inv>0||ally.dashTime>0||scene!=='play'||s.phase==='rest')return;
+ const reduction=1-Math.min(.65,(ally.runUp?.hp||0)*.025);
+ if(ally.fusions?.includes('astralGuardian')&&ally.guardianShield){ally.guardianShield=0;portalFx(ally.x,ally.y,'#80ffe0',1);return;}ally.inv=.56;ally.hp=Math.max(0,ally.hp-Math.max(1,Math.ceil(amt*reduction)));impactFx(ally.x,ally.y,'#ff679b',.8);
+ if(ally.hp<=0){floatText(ally.x,ally.y-60,'쓰러짐!','#ff9cb0',20);if(s.player.hp<=0)gameOver();}
+}
+function coopValidTarget(character,isHost){return !!character&&character.hp>0&&!character.choosing&&!(character.upQueue>0)&&!(isHost&&coop.hostChoosing)}
+function coopNextTarget(enemy){let p=s.player,a=coop.mode==='host'?coop.ally:null;
+ let hostOkay=coopValidTarget(p,true),allyOkay=coopValidTarget(a,false);
+ if(hostOkay&&allyOkay)return dist(enemy,a)<dist(enemy,p)?a:p;
+ return hostOkay?p:allyOkay?a:null;
+}
+function coopAllyApplyUpgrade(id){const ally=coop.ally;if(!ally||ally.upQueue<=0)return false;
+ const fusion=FUSIONS.find(f=>f.id===id);
+ if(fusion){if((ally.runUp[fusion.a]||0)<5||(ally.runUp[fusion.b]||0)<5||ally.fusions.includes(id))return false;ally.fusions.push(id);if(id==='astralGuardian')ally.guardianShield=1;}
+ else{const u=upgrades.find(v=>v.id===id);if(!u|| (ally.runUp[id]||0)>=u.max)return false;
+ ally.runUp[id]=(ally.runUp[id]||0)+1;
+ if(id==='hp'){ally.maxHP+=26;ally.hp=Math.min(ally.maxHP,ally.hp+45)}
+ if(id==='heal')ally.hp=Math.min(ally.maxHP,ally.hp+35);
+ }
+ ally.upQueue--;ally.choosing=ally.upQueue>0;sigilFx(ally.x,ally.y,'#a4baff',.8);
+ return true;
+}
+function coopAllyPowers(dt){const ally=coop.ally;if(!ally||ally.hp<=0||ally.choosing)return;
+ const lv=id=>ally.runUp?.[id]||0;ally.powerTick+=dt;if(ally.fusions?.includes('astralGuardian')){ally.guardianCd=(ally.guardianCd||0)+dt;if(ally.guardianCd>13){ally.guardianCd=0;ally.guardianShield=1;}ally.hp=Math.min(ally.maxHP,ally.hp+2*dt);}
+ if(lv('orb')>0){const n=lv('orb');for(let j=0;j<n;j++){let angle=s.elapsed*2.5+j*Math.PI*2/n,x=ally.x+Math.cos(angle)*80,y=ally.y+Math.sin(angle)*80;
+ for(const e of s.enemies){if(!e.dead&&Math.hypot(e.x-x,e.y-y)<e.r+17&&(e.coopOrbLast||-3)<s.elapsed-.4){e.coopOrbLast=s.elapsed;hurtEnemy(e,11+n*5)}}}}
+ if(lv('blast')>0&&ally.powerTick>Math.max(3,7-lv('blast')*.55)){ally.powerTick=0;portalFx(ally.x,ally.y,'#a96eff',1.1);for(const e of s.enemies){if(!e.dead&&dist(e,ally)<190)hurtEnemy(e,20+lv('blast')*15)}}
+ if(lv('redReversal')>0){ally.redCd=(ally.redCd||0)-dt;if(ally.redCd<=0){ally.redCd=lv('redReversal')>=6?1.1:2.8;const target=s.enemies.filter(e=>!e.dead).sort((a,b)=>dist(a,ally)-dist(b,ally))[0];if(target&&dist(target,ally)<470){flameFx(target.x,target.y,'#ff3b59',1.15);hurtEnemy(target,(15+lv('redReversal')*13)* (lv('redReversal')>=6?2:1))}}}
+ if(lv('blueLapse')>0){const n=lv('blueLapse')>=6?4:2;for(let j=0;j<n;j++){let angle=s.elapsed*5.2+j*Math.PI*2/n,x=ally.x+Math.cos(angle)*103,y=ally.y+Math.sin(angle)*103;for(const e of s.enemies){if(!e.dead&&Math.hypot(e.x-x,e.y-y)<e.r+24&&(e.coopBlueLast||-3)<s.elapsed-.42){e.coopBlueLast=s.elapsed;hurtEnemy(e,9+lv('blueLapse')*6)}}}}
+ if(ally.fusions.includes('hollowPurple')){ally.purpleCd=(ally.purpleCd||0)-dt;if(ally.purpleCd<=0){ally.purpleCd=8;s.specialFx.push({type:'purple',x:ally.x,y:ally.y,t:0,life:1.7,hit:false,coopOwner:true})}}
+ if(ally.fusions.includes('luckyLaser')){ally.laserCd=(ally.laserCd||0)-dt;if(ally.laserCd<=0){const target=s.enemies.filter(e=>!e.dead).sort((a,b)=>dist(a,ally)-dist(b,ally))[0];if(target){ally.laserCd=6.2;s.specialFx.push({type:'luckyLaser',x:ally.x,y:ally.y,angle:Math.atan2(target.y-ally.y,target.x-ally.x),t:0,life:.78,hit:false,coopOwner:true})}}}
+ if(ally.fusions.includes('thunderNova')){ally.thunderCd=(ally.thunderCd||0)-dt;if(ally.thunderCd<=0){ally.thunderCd=7;s.specialFx.push({type:'thunderNova',x:ally.x,y:ally.y,t:0,life:.9,hit:false,arcs:[],coopOwner:true})}}
+ if(ally.fusions.includes('starBarrage')){ally.cometCd=(ally.cometCd||0)-dt;if(ally.cometCd<=0){ally.cometCd=1.45;const target=s.enemies.filter(e=>!e.dead).sort((a,b)=>dist(a,ally)-dist(b,ally))[0];if(target){let angle=Math.atan2(target.y-ally.y,target.x-ally.x);for(let k=-2;k<=2;k++){let a=angle+k*.17;s.bullets.push({x:ally.x,y:ally.y,vx:Math.cos(a)*900,vy:Math.sin(a)*900,r:8,life:1.0,damage:damageVal()*2.1,crit:true,pierce:5,hit:new Set(),friend:true,fusionGold:true});}}}}
+
+}
+
 function coopUpdateHostPartner(dt){if(coop.mode!=='host'||!coop.conn?.open||!coop.ally||!coop.inGame)return;const p=coop.ally,cmd=coop.remoteInput;
  p.dash=Math.max(0,p.dash-dt);p.dashTime=Math.max(0,p.dashTime-dt);p.inv=Math.max(0,p.inv-dt);p.fxTick-=dt;
- let dx=cmd.x,dy=cmd.y,d=Math.max(1,Math.hypot(dx,dy)),spd=playerSpeed()*.96;p.vx=dx/d*spd;p.vy=dy/d*spd;
- if(cmd.dash){cmd.dash=false;if(p.dash<=0){let a=Math.hypot(dx,dy);if(a<.08){dx=Math.cos(p.rot);dy=Math.sin(p.rot);a=1}p.dashDx=dx/a;p.dashDy=dy/a;p.dashTime=.24;p.dash=2.7;p.fxTick=0;dashBurst(p.x,p.y,Math.atan2(p.dashDy,p.dashDx));}}
+ let dx=(p.choosing||p.upQueue>0||p.hp<=0)?0:cmd.x,dy=(p.choosing||p.upQueue>0||p.hp<=0)?0:cmd.y,d=Math.max(1,Math.hypot(dx,dy)),spd=(300+meta.permanent.speed*12)*(1+(p.runUp?.speed||0)*.12);p.vx=dx/d*spd;p.vy=dy/d*spd;
+ if(cmd.dash){cmd.dash=false;if(p.dash<=0&&p.hp>0&&!p.choosing&&p.upQueue<=0){let a=Math.hypot(dx,dy);if(a<.08){dx=Math.cos(p.rot);dy=Math.sin(p.rot);a=1}p.dashDx=dx/a;p.dashDy=dy/a;p.dashTime=.24;p.dash=2.7;p.fxTick=0;dashBurst(p.x,p.y,Math.atan2(p.dashDy,p.dashDx));}}
  if(p.dashTime>0){p.x+=p.dashDx*970*dt;p.y+=p.dashDy*970*dt;if(p.fxTick<=0){p.fxTick=.048;dashBurst(p.x,p.y,Math.atan2(p.dashDy,p.dashDx))}}else{p.x+=p.vx*dt;p.y+=p.vy*dt}
  p.x=clamp(p.x,-world.w/2+70,world.w/2-70);p.y=clamp(p.y,-world.h/2+70,world.h/2-70);
- p.shot-=dt;if(p.shot<=0&&s.enemies.length){const t=s.enemies.filter(e=>!e.dead&&dist(e,p)<520).sort((a,b)=>dist(a,p)-dist(b,p))[0];if(t){let a=Math.atan2(t.y-p.y,t.x-p.x);p.rot=a;s.bullets.push({x:p.x+Math.cos(a)*24,y:p.y+Math.sin(a)*24,vx:Math.cos(a)*770,vy:Math.sin(a)*770,r:6,life:.86,damage:damageVal()*.85,crit:false,pierce:U('pierce'),hit:new Set(),trace:[],friend:true});muzzleFx(p.x+Math.cos(a)*22,p.y+Math.sin(a)*22,a,'#a6f8ff',.85);p.shot=fireRate()*1.15}}
- // Since health is shared, always mirror the teammate's bar; independent invulnerability applies to each avatar.
- p.hp=s.player.hp;p.maxHP=s.player.maxHP;
+ p.shot-=dt;const lv=id=>p.runUp?.[id]||0;
+ if(p.shot<=0&&s.enemies.length&&p.hp>0&&!p.choosing&&p.upQueue<=0){const t=s.enemies.filter(e=>!e.dead&&dist(e,p)<520).sort((a,b)=>dist(a,p)-dist(b,p))[0];if(t){let angle=Math.atan2(t.y-p.y,t.x-p.x),shots=1+lv('multishot');p.rot=angle;
+ for(let j=0;j<shots;j++){const a=angle+(j-(shots-1)/2)*.16,sx=p.x+Math.cos(a)*24,sy=p.y+Math.sin(a)*24;
+ s.bullets.push({x:sx,y:sy,vx:Math.cos(a)*770,vy:Math.sin(a)*770,r:6,life:.86,damage:(17+meta.permanent.attack*3+armorStats().atk)*(1+lv('damage')*.22)*.9,crit:Math.random()<.06+lv('crit')*.09,pierce:lv('pierce'),hit:new Set(),trace:[],friend:true});muzzleFx(sx,sy,a,'#a6f8ff',.85)}
+ p.shot=Math.max(.11,.49*Math.pow(.86,lv('rate')))*1.12;}}
+ coopAllyPowers(dt);
 }
 function drawCoopPartner(){if(!s||!coop.ally||coop.mode==='solo')return;const p=coop.ally;ctx.save();if(p.inv>0&&Math.sin(s.elapsed*29)>0)ctx.globalAlpha=.56;
  circle(p.x,p.y,35,'#ad8dff23');ctx.strokeStyle='#c7a5ff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(p.x,p.y,35,0,Math.PI*2);ctx.stroke();
- imgDraw(coop.mode==='host'?coop.friendSkin:meta.skin,p.x,p.y,58,58,Math.sin(s.elapsed*1.6)*.09);
+ imgDraw(coop.mode==='host'?coop.friendSkin:coop.hostSkin,p.x,p.y,58,58,Math.sin(s.elapsed*1.6)*.09);
  if(p.dashTime>0){ctx.strokeStyle='#d1acff';ctx.lineWidth=4;ctx.beginPath();ctx.arc(p.x,p.y,43,0,Math.PI*2);ctx.stroke()}
- ctx.textAlign='center';ctx.font='900 13px system-ui';ctx.lineWidth=4;ctx.strokeStyle='#0b1431';ctx.strokeText(coop.mode==='host'?'친구':'나',p.x,p.y-42);ctx.fillStyle='#e5caff';ctx.fillText(coop.mode==='host'?'친구':'나',p.x,p.y-42);
- ctx.restore()}
+ ctx.textAlign='center';ctx.font='900 13px system-ui';ctx.lineWidth=4;ctx.strokeStyle='#0b1431';ctx.strokeText(coop.mode==='host'?'친구':'방장',p.x,p.y-42);ctx.fillStyle='#e5caff';ctx.fillText(coop.mode==='host'?'친구':'방장',p.x,p.y-42);
+ ctx.fillStyle='#12213bcc';ctx.fillRect(p.x-30,p.y-64,60,6);ctx.fillStyle=p.hp<=0?'#68778b':'#69f1a9';ctx.fillRect(p.x-30,p.y-64,60*clamp(p.hp/p.maxHP,0,1),6);if(p.hp<=0){ctx.font='900 12px system-ui';ctx.textAlign='center';ctx.fillText('쓰러짐',p.x,p.y-76)}ctx.restore()}
+function coopChooseGuestUpgrade(){
+ if(coop.mode!=='guest'||!coop.inGame||!s?.player||coop.guestChoosing||coop.guestChoiceWaiting||s.player.upQueue<=0)return;
+ coop.guestChoosing=true;
+ const levels=s.player.runUp||{},fusions=s.player.fusions||[];
+ const canFuse=f=> (levels[f.a]||0)>=5&&(levels[f.b]||0)>=5&&!fusions.includes(f.id);
+ const chosen=FUSIONS.filter(canFuse).map(f=>({...f,isFusion:true,rarity:'fusion'})).slice(0,1);
+ const pool=upgrades.filter(u=>(levels[u.id]||0)<u.max);
+ while(chosen.length<3&&pool.length){const idx=rnd(0,pool.length-1);chosen.push(pool.splice(idx,1)[0]);}
+ if(!chosen.length){coop.guestChoosing=false;coop.guestChoiceWaiting=true;coop.guestQueueBefore=s.player.upQueue;coopSend({type:'upgrade',id:'heal'});return;}
+ const cards=chosen.map(u=>{const fusion=!!u.isFusion,trans=!fusion&&(levels[u.id]||0)===5;
+ return `<button class="choiceCard ${fusion?'fusionCard':''} ${trans?'transcendCard':''}" data-friend-up="${u.id}"><span class="rarity ${fusion?'fusion':u.rarity}">${fusion?'💠 합성 초월':trans?'🌈 초월':u.rarity} · ${fusion?'합성':'LV.'+((levels[u.id]||0)+1)}</span>${art(u.icon)}<h3>${u.name}</h3><p>${u.desc}</p></button>`}).join('');
+ modal('✨ 나의 스킬 선택',`LEVEL ${s.lvl} · 친구와 별개로 나의 스킬을 골라! 선택하는 동안 나는 공격받지 않아.`,
+ `<div class="cardGrid">${cards}</div><p class="tiny" style="text-align:center">방장은 계속 움직이고 싸울 수 있어요.</p>`,{mandatory:true,noPause:true,tag:'DUO • YOUR POWER'});
+ $$('[data-friend-up]').forEach(button=>button.onclick=()=>{
+   coop.guestQueueBefore=s.player.upQueue;coop.guestChoiceWaiting=true;coop.guestChoosing=false;
+   coopSend({type:'upgrade',id:button.dataset.friendUp});forceClose();
+ });
+}
 function coopGuestInput(dt){if(coop.mode!=='guest'||scene!=='play'||!coop.inGame)return;coop.inputTick+=dt;
  if(coop.inputTick>=.05){coop.inputTick=0;let dx=Number(!!keys.d)+Number(!!keys.ArrowRight)-Number(!!keys.a)-Number(!!keys.ArrowLeft)+stick.x;let dy=Number(!!keys.s)+Number(!!keys.ArrowDown)-Number(!!keys.w)-Number(!!keys.ArrowUp)+stick.y;
- const len=Math.hypot(dx,dy),scale=Math.max(1,len);coopSend({type:'input',x:dx/scale,y:dy/scale,dash:coop.guestDash});coop.guestDash=false;}
- if(coop.ally){camera.x+=(coop.ally.x-camera.x)*Math.min(1,dt*7);camera.y+=(coop.ally.y-camera.y)*Math.min(1,dt*7)}
+ if(coop.guestChoosing||coop.guestChoiceWaiting||s.player.hp<=0){dx=0;dy=0;}const len=Math.hypot(dx,dy),scale=Math.max(1,len);coopSend({type:'input',x:dx/scale,y:dy/scale,dash:coop.guestDash});coop.guestDash=false;}
+ if(s?.player){camera.x+=(s.player.x-camera.x)*Math.min(1,dt*7);camera.y+=(s.player.y-camera.y)*Math.min(1,dt*7)}
 }
 function coopBroadcast(dt){coopPillText();if(coop.mode!=='host'||!coop.conn?.open||!coop.inGame||!s||scene!=='play')return;
  coop.sendTick+=dt;if(coop.sendTick<.083)return;coop.sendTick=0;
  const small=(a,fields)=>a.map(o=>Object.fromEntries(fields.map(k=>[k,o[k]])));
  const pack={type:'state',pause:paused,game:{world:s.world,wave:s.wave,globalWave:s.globalWave,phase:s.phase,elapsed:s.elapsed,time:s.time,score:s.score,lvl:s.lvl,xp:s.xp,xpGoal:s.xpGoal,coins:s.coins,gems:s.gems,combo:s.combo,kills:s.kills,
-  player:{...s.player},ally:{...coop.ally,hp:s.player.hp,maxHP:s.player.maxHP},runUp:s.runUp,fusions:s.fusions,
+  player:{...s.player},ally:{...coop.ally},runUp:s.runUp,fusions:s.fusions,
   enemies:small(s.enemies,['type','x','y','hp','maxHP','r','hit','phase','angle']),
   bullets:small(s.bullets,['x','y','vx','vy','r','crit','fusionGold']),badBullets:small(s.badBullets,['x','y','r']),
   drops:small(s.drops,['x','y','r','type','phase']),rings:small(s.rings.slice(-30),['x','y','r','life','max','color']),
@@ -971,9 +1029,14 @@ function coopBroadcast(dt){coopPillText();if(coop.mode!=='host'||!coop.conn?.ope
 }
 function coopApplyState(msg){let g=msg.game;if(!g||typeof g!=='object')return;coop.lastReceive=performance.now();
  // Only drawing / HUD state is synced. No remote client may overwrite local permanent inventory or coupons.
- for(const k of ['world','wave','globalWave','phase','elapsed','time','score','lvl','xp','xpGoal','coins','gems','combo','kills','player','enemies','bullets','badBullets','drops','rings','particles','floats','vfx','specialFx','runUp','fusions','boss'])if(g[k]!==undefined)s[k]=g[k];
- coop.ally=g.ally||coop.ally;coopPillText();updateHUD();
- const wait=coopEl('coopWait');wait.textContent=g.phase==='rest'?'⏳ 방장이 다음 강화 능력을 선택하는 중…':msg.pause?'⏸ 방장이 잠시 멈췄어.':'';wait.classList.toggle('on',!!wait.textContent);
+ for(const k of ['world','wave','globalWave','phase','elapsed','time','score','lvl','xp','xpGoal','coins','gems','combo','kills','enemies','bullets','badBullets','drops','rings','particles','floats','vfx','specialFx','boss'])if(g[k]!==undefined)s[k]=g[k];
+ // On guest the local character is the main hero (including local HP and upgrades).
+ if(g.ally){s.player=g.ally;s.runUp=g.ally.runUp||{};s.fusions=g.ally.fusions||[];}
+ if(g.player)coop.ally=g.player;
+ if(coop.guestChoiceWaiting&&g.ally&&g.ally.upQueue<coop.guestQueueBefore)coop.guestChoiceWaiting=false;
+ coopPillText();updateHUD();
+ if(g.ally&&g.ally.upQueue>0&&!coop.guestChoosing&&!coop.guestChoiceWaiting&&!$('#dialogLayer').classList.contains('open'))coopChooseGuestUpgrade();
+ const wait=coopEl('coopWait');wait.textContent=coop.guestChoosing?'✨ 스킬을 선택하세요':g.phase==='rest'?'⏳ 다음 웨이브 준비 중…':msg.pause?'⏸ 일시정지 중':'';wait.classList.toggle('on',!!wait.textContent);
 }
 function coopGuestResult(msg){if(!coop.inGame)return;coop.inGame=false;const coins=Math.max(0,Math.min(100000,Math.floor(Number(msg.coins)||0)));
  meta.bank+=coins;meta.best=Math.max(meta.best,Number(msg.score)||0);meta.kill+=Math.max(0,Math.floor(Number(msg.kills)||0));meta.wins+=Math.max(0,Math.floor(Number(msg.bosses)||0));meta.highestWorld=Math.max(meta.highestWorld,Number(msg.world)||1);save();
